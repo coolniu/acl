@@ -18,42 +18,42 @@ typedef struct ACL_XML_NODE	ACL_XML_NODE;
 typedef struct ACL_XML_ATTR	ACL_XML_ATTR;
 
 struct ACL_XML_ATTR {
-	ACL_XML_NODE *node;         /**< 所属节点 */
-	ACL_VSTRING *name;          /**< 属性名 */
-	ACL_VSTRING *value;         /**< 属性值 */
+	ACL_XML_NODE *node;             /**< 所属节点 */
+	ACL_VSTRING *name;              /**< 属性名 */
+	ACL_VSTRING *value;             /**< 属性值 */
 
 	/* private */
-	int   quote;                /**< 非 0 表示 ' 或 " */
-	int   backslash;            /**< 转义字符 \ */
-	int   part_word;            /**< 半个汉字的情况处理标志位 */
-	int   slash;                /**< 是否有 '/' 标志位设定 */
+	int   quote;                    /**< 非 0 表示 ' 或 " */
+	int   backslash;                /**< 转义字符 \ */
+	int   slash;                    /**< 是否有 '/' 标志位设定 */
 };
 
 struct ACL_XML_NODE {
-	ACL_VSTRING *ltag;          /**< 左标签名 */
-	ACL_VSTRING *rtag;          /**< 右标签名 */
-	const ACL_VSTRING *id;      /**< ID标识符, 只有在 xml->id_table 存在的
-				         节点的 id 才非空 */
-	ACL_VSTRING *text;          /**< 文本显示内容 */
-	ACL_ARRAY *attr_list;       /**< 属性(ACL_XML_ATTR)列表 */
-	ACL_XML_NODE *parent;       /**< 父节点 */
-	ACL_RING children;          /**< 子节点集合 */
-	int  depth;                 /**< 当前节点的深度 */
+	ACL_VSTRING *ltag;              /**< 左标签名 */
+	ACL_VSTRING *rtag;              /**< 右标签名 */
+	const ACL_VSTRING *id;          /**< ID标识符, 只有 xml->id_table
+					 存在的节点的 id 才非空 */
+	ACL_VSTRING *text;              /**< 文本显示内容 */
+	ACL_ARRAY *attr_list;           /**< 属性(ACL_XML_ATTR)列表 */
+	ACL_XML_NODE *parent;           /**< 父节点 */
+	ACL_RING children;              /**< 子节点集合 */
+	int  depth;                     /**< 当前节点的深度 */
 
 	/* private */
-	ACL_XML *xml;               /**< xml 对象 */
-	ACL_RING node;              /**< 当前节点 */
-	ACL_XML_ATTR *curr_attr;    /**< 当前正在解析的属性 */
-	int   quote;                /**< 非 0 表示 ' 或 " */
-	int   last_ch;              /**< 所记录本节点的前一个字节值 */
-	int   nlt;                  /**< '<' 个数 */
-	char  meta[3];              /**< 元数据临时缓冲区 */
+	ACL_XML *xml;                   /**< xml 对象 */
+	ACL_RING node;                  /**< 当前节点 */
+	ACL_XML_ATTR *curr_attr;        /**< 当前正在解析的属性 */
+	int   quote;                    /**< 非 0 表示 ' 或 " */
+	int   last_ch;                  /**< 所记录本节点的前一个字节值 */
+	int   nlt;                      /**< '<' 个数 */
+	char  meta[3];                  /**< 元数据临时缓冲区 */
 	unsigned int flag;
 #define	ACL_XML_F_META_QM	(1 << 0)    /**< '?' flag */
 #define	ACL_XML_F_META_CM	(1 << 1)    /**< '!--' flag */
 #define	ACL_XML_F_META_EM	(1 << 2)    /**< only '!' flag */
 #define ACL_XML_F_SELF_CL	(1 << 3)    /**< self closed flag */
 #define	ACL_XML_F_LEAF		(1 << 4)    /**< leaf node has no child node */
+#define	ACL_XML_F_CDATA		(1 << 5)    /**< CDATA data */
 
 /**< 是否是元数据 */
 #define	ACL_XML_F_META		\
@@ -61,23 +61,26 @@ struct ACL_XML_NODE {
 
 #define	ACL_XML_IS_COMMENT(x)	(((x)->flag & ACL_XML_F_META_CM))
 
-	int   status;               /**< 状态机当前解析状态 */
-#define ACL_XML_S_NXT	0       /**< 下一个节点 */
-#define ACL_XML_S_LLT	1       /**< 左边 '<' */
-#define ACL_XML_S_LGT	2       /**< 右边 '>' */
-#define	ACL_XML_S_LCH	3       /**< 左边 '<' 后第一个字节 */
-#define ACL_XML_S_LEM	4       /**< 左边 '<' 后的 '!' */
-#define ACL_XML_S_LTAG	5       /**< 左边的标签名 */
-#define ACL_XML_S_RLT	6       /**< 右边的 '<' */
-#define ACL_XML_S_RGT	7       /**< 右边的 '>' */
-#define ACL_XML_S_RTAG	8       /**< 右边的标签名 */
-#define ACL_XML_S_ATTR	9       /**< 标签属性名 */
-#define ACL_XML_S_AVAL	10      /**< 标签属性值 */
-#define ACL_XML_S_TXT	11      /**< 节点文本 */
-#define ACL_XML_S_MTAG	12      /**< 元数据标签 */
-#define ACL_XML_S_MTXT	13      /**< 元数据文本 */
-#define ACL_XML_S_MCMT	14      /**< 元数据注释 */
-#define ACL_XML_S_MEND	15      /**< 元数据结束 */
+#define	ACL_XML_IS_CDATA(x)	(((x)->flag & ACL_XML_F_CDATA))
+
+	int   status;                   /**< 状态机当前解析状态 */
+#define ACL_XML_S_NXT		0       /**< 下一个节点 */
+#define ACL_XML_S_LLT		1       /**< 左边 '<' */
+#define ACL_XML_S_LGT		2       /**< 右边 '>' */
+#define	ACL_XML_S_LCH		3       /**< 左边 '<' 后第一个字节 */
+#define ACL_XML_S_LEM		4       /**< 左边 '<' 后的 '!' */
+#define ACL_XML_S_LTAG		5       /**< 左边的标签名 */
+#define ACL_XML_S_RLT		6       /**< 右边的 '<' */
+#define ACL_XML_S_RGT		7       /**< 右边的 '>' */
+#define ACL_XML_S_RTAG		8       /**< 右边的标签名 */
+#define ACL_XML_S_ATTR		9       /**< 标签属性名 */
+#define ACL_XML_S_AVAL		10      /**< 标签属性值 */
+#define ACL_XML_S_TXT		11      /**< 节点文本 */
+#define ACL_XML_S_MTAG		12      /**< 元数据标签 */
+#define ACL_XML_S_MTXT		13      /**< 元数据文本 */
+#define ACL_XML_S_MCMT		14      /**< 元数据注释 */
+#define ACL_XML_S_MEND		15      /**< 元数据结束 */
+#define	ACL_XML_S_CDATA		16      /**< CDATA 数据 */
 
 	/* public: for acl_iterator, 通过 acl_foreach 列出该节点的一级子节点 */
 
@@ -93,28 +96,35 @@ struct ACL_XML_NODE {
 
 struct ACL_XML {
 	/* public */
-	int   depth;                /**< 最大深度 */
-	int   node_cnt;             /**< 节点总数, 包括 root 节点 */
-	ACL_XML_NODE *root;         /**< XML 根节点 */
+	int   depth;                    /**< 最大深度 */
+	int   node_cnt;                 /**< 节点总数, 包括 root 节点 */
+	int   root_cnt;                 /**< 根节点个数 */
+	int   attr_cnt;                 /**< 属性总数 */
+	ACL_XML_NODE *root;             /**< XML 根节点 */
 
 	/* private */
-	ACL_HTABLE *id_table;       /**< id 标识符哈希表 */
-	ACL_XML_NODE *curr_node;    /**< 当前正在处理的 XML 节点 */
-	ACL_DBUF_POOL *dbuf;        /**< 内存池对象 */
-	ACL_DBUF_POOL *dbuf_inner;  /**< 内部分布的内存池对象 */
-	size_t dbuf_keep;           /**< 内存池中保留的长度 */
+	ACL_HTABLE *id_table;           /**< id 标识符哈希表 */
+	ACL_XML_NODE *curr_node;        /**< 当前正在处理的 XML 节点 */
+	ACL_DBUF_POOL *dbuf;            /**< 内存池对象 */
+	ACL_DBUF_POOL *dbuf_inner;      /**< 内部分布的内存池对象 */
+	size_t dbuf_keep;               /**< 内存池中保留的长度 */
+	size_t space;                   /**< 在创建 xml 对象时已分配的内存大小 */
 
-	unsigned flag;              /**< 标志位: ACL_XML_FLAG_xxx */ 
+	unsigned flag;                  /**< 标志位: ACL_XML_FLAG_xxx */ 
 
-	/**< 是否兼容后半个汉字为转义符 '\' 的情况 */
-#define	ACL_XML_FLAG_PART_WORD		(1 << 0)
+	/**< 是否允许一个 xml 文档中有多个根节点，内部缺省为允许 */
+#define	ACL_XML_FLAG_MULTI_ROOT	(1 << 0)
 
 	/**< 是否兼容单节点中没有 '/' 情况 */
 #define	ACL_XML_FLAG_IGNORE_SLASH	(1 << 1)
 
 	/**< 是否需要对文本数据进行 xml 解码  */
 #define	ACL_XML_FLAG_XML_DECODE		(1 << 2)
-	ACL_VSTRING *decode_buf;    /**< 当需要进行 xml 解码时非空 */
+
+	/**< 创建 xml 对象时是否需要对数据进行 xml 编码 */
+#define ACL_XML_FLAG_XML_ENCODE		(1 << 3)
+
+	ACL_VSTRING *decode_buf;        /**< 当需要进行 xml 解码时非空 */
 
 	/* public: for acl_iterator, 通过 acl_foreach 可以列出所有子节点 */
 
@@ -168,6 +178,19 @@ ACL_API ACL_XML *acl_xml_alloc(void);
 ACL_API ACL_XML *acl_xml_dbuf_alloc(ACL_DBUF_POOL *dbuf);
 
 /**
+ * 获得当前 xml 对象内部已经分配的内存空间大小
+ * @param xml {ACL_XML*}
+ * @return {size_t} 当前 xml 对象内部已分配的内存大小
+ */
+ACL_API size_t acl_xml_space(ACL_XML *xml);
+
+/**
+ * 将 xml 对象内部记录内存大小的变量清 0
+ * @param xml {ACL_XML*}
+ */
+ACL_API void acl_xml_space_clear(ACL_XML *xml);
+
+/**
  * 将某一个 ACL_XML_NODE 节点作为一个 XML 对象的根节点，从而可以方便地遍历出该
  * 节点各级子节点(在遍历过程中的所有节点不含本节点自身)，该遍历方式有别于单独
  * 遍历某一个 ACL_XML_NODE 节点时仅能遍历其一级子节点的情形
@@ -175,6 +198,14 @@ ACL_API ACL_XML *acl_xml_dbuf_alloc(ACL_DBUF_POOL *dbuf);
  * @param node {ACL_XML_NODE*} AXL_XML_NODE 节点
  */
 ACL_API void acl_xml_foreach_init(ACL_XML *xml, ACL_XML_NODE *node);
+
+/**
+ * 设置一个 xml 文档中是否允许有多个根 xml 节点，内部缺省支持多个根节点
+ * @param xml {ACL_XML*} xml 对象
+ * @param on {int} 非 0 则允许，为 0 表示不允许，当禁止有多个根 xml 节点时，
+ *  则在解析时当遇到第一个根节点结束时便返回剩余的数据
+ */
+ACL_API void acl_xml_multi_root(ACL_XML *xml, int on);
 
 /**
  * 对于 XML 单节点的情况, 是否允许可以没有 /, 如:
@@ -187,11 +218,16 @@ ACL_API void acl_xml_foreach_init(ACL_XML *xml, ACL_XML_NODE *node);
 ACL_API void acl_xml_slash(ACL_XML *xml, int ignore);
 
 /**
- * 设置是否需要对 xml 对象中的属性值及文本值进行 xml 解码，内部缺省为不解
+ * 解析 xml 对象时是否对属性值及文本值进行 xml 解码，内部缺省解码
  * @param xml {ACL_XML*}
  * @param on {int} 非 0 表示进行 xml 解码
  */
 ACL_API void acl_xml_decode_enable(ACL_XML *xml, int on);
+
+/**
+ * 创建 xml 对象时是否对属性值及文本值进行 xml 编码，内部缺省编码
+ */
+ACL_API void acl_xml_encode_enable(ACL_XML *xml, int on);
 
 /**
  * 释放一个 xml 对象, 同时释放该对象里容纳的所有 xml 节点
@@ -213,8 +249,12 @@ ACL_API void acl_xml_reset(ACL_XML *xml);
  * @param xml {ACL_XML*} xml 对象
  * @param data {const char*} 以 '\0' 结尾的数据字符串, 可以是完整的 xml 数据;
  *  也可以是不完整的 xml 数据, 允许循环调用此函数, 将不完整数据持续地输入
+ * @return {const char*} 当通过 acl_xml_multi_root 允许一个 xml 文档中在在
+ *  多个根 xml 节点时，该函数返回的地址的字节为 '\0'; 否则返回剩余的数据地址
+ *  包含非空字符串
+ *  注：也可以通过 acl_xml_is_complete 判断是否解析完毕
  */
-ACL_API void acl_xml_update(ACL_XML *xml, const char *data);
+ACL_API const char *acl_xml_update(ACL_XML *xml, const char *data);
 #define	acl_xml_parse	acl_xml_update
 
 /*------------------------- in acl_xml_util.c -----------------------------*/
@@ -408,6 +448,19 @@ ACL_API ACL_XML_NODE *acl_xml_create_node(ACL_XML *xml,
 	const char* tagname, const char* text);
 
 /**
+ * 创建 xml 节点，使用文件流做为节点的文本内容项，同时会自动进行 XML 编码处理
+ * @param xml {ACL_XML*} xml 对象
+ * @param tag {const char*} 标签名，非 NULL 字符串
+ * @param in {ACL_VSTREAM *} 输入流，非 NULL 时，其中内容将做为 xml 节点的文本内容
+ * @param off {size_t} 当 in 为文件流时指定所拷贝内容在文件中的起始位置
+ * @param len {size_t} 指定从输入流中拷贝的最大数据长度，当为 0 时则一直拷贝至流结束
+ * @return {ACL_XML_NODE*} 返回新创建的 xml 节点，永远返回非 NULL 对象，
+ *  如果输入参数非法则内部产生断言
+ */
+ACL_API ACL_XML_NODE *acl_xml_create_node_with_text_stream(ACL_XML *xml,
+	const char *tag, ACL_VSTREAM *in, size_t off, size_t len);
+
+/**
  * 给一个 xml 节点添加属性，该函数主要用在构建 xml 对象时
  * @param node {ACL_XML_NODE*} 由 acl_xml_create_node 创建的节点
  * @param name {const char*} 属性名，必须为非空字符串且字符串长度大于 0
@@ -427,11 +480,30 @@ ACL_API ACL_XML_ATTR *acl_xml_node_add_attr(ACL_XML_NODE *node,
 ACL_API void acl_xml_node_add_attrs(ACL_XML_NODE *node, ...);
 
 /**
- * 给一个 xml 节点添加文本内容，该函数主要用在构建 xml 对象时
+ * 给一个 xml 节点添加文本内容，该函数主要用在构建 xml 对象时，当该节点之前有文本内容时
+ * 则用新文本覆盖原文本
  * @param node {ACL_XML_NODE*} 由 acl_xml_create_node 创建的节点
  * @param text {const char*} 文本内容
  */
 ACL_API void acl_xml_node_set_text(ACL_XML_NODE *node, const char *text);
+
+/**
+* 给一个 xml 节点的文本追加内容，该函数主要用在构建 xml 对象时，在该节点的文本内容上
+* 追加新的文本内容
+* @param node {ACL_XML_NODE*} 由 acl_xml_create_node 创建的节点
+* @param text {const char*} 文本内容 
+ */
+ACL_API void acl_xml_node_add_text(ACL_XML_NODE *node, const char *text);
+
+/**
+ * 用文件流中的内容给一个 xml 节点添加文本内容
+ * @param node {ACL_XML_NODE*} 由 acl_xml_create_node 创建的节点 
+ * @param in {ACL_VSTREAM*} 输入流对象
+ * @param off {size_t} 当 in 为文件流，指定在文件中的起始位置
+ * @param len {size_t} 要拷贝的最大数据长度，当为 0 时则一直拷贝至流结束
+ */
+ACL_API void acl_xml_node_set_text_stream(ACL_XML_NODE *node,
+	ACL_VSTREAM *fp, size_t off, size_t len);
 
 /**
  * 将 xml 对象转成字符串内容

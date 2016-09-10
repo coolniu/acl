@@ -1,7 +1,9 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/db/db_handle.hpp"
 #include "acl_cpp/db/db_pool.hpp"
+#endif
 
 namespace acl
 {
@@ -22,6 +24,19 @@ db_handle* db_pool::peek_open(const char* charset /* = NULL */)
 	logger_error("open db failed");
 	put(conn, false);
 	return NULL;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+db_guard::~db_guard(void)
+{
+	if (conn_)
+	{
+		db_handle* db = (db_handle*) conn_;
+		db->free_result();
+		pool_.put(conn_, keep_);
+		conn_ = NULL;
+	}
 }
 
 } // namespace acl

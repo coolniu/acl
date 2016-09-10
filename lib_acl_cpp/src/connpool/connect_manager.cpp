@@ -1,10 +1,12 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/locker.hpp"
 #include "acl_cpp/connpool/connect_monitor.hpp"
 #include "acl_cpp/connpool/connect_pool.hpp"
 #include "acl_cpp/connpool/connect_manager.hpp"
+#endif
 
 namespace acl
 {
@@ -14,6 +16,8 @@ connect_manager::connect_manager()
 , service_idx_(0)
 , stat_inter_(1)
 , retry_inter_(1)
+, idle_ttl_(-1)
+, check_inter_(-1)
 , monitor_(NULL)
 {
 }
@@ -79,11 +83,22 @@ void connect_manager::set_retry_inter(int n)
 	lock_.unlock();
 }
 
+void connect_manager::set_check_inter(int n)
+{
+	check_inter_ = n;
+}
+
+void connect_manager::set_idle_ttl(time_t ttl)
+{
+	idle_ttl_ = ttl;
+}
+
 void connect_manager::init(const char* default_addr, const char* addr_list,
 	size_t count, int conn_timeout /* = 30 */, int rw_timeout /* = 30 */)
 {
 	if (addr_list != NULL && *addr_list != 0)
-		set_service_list(addr_list, count, conn_timeout, rw_timeout);
+		set_service_list(addr_list, (int) count,
+			conn_timeout, rw_timeout);
 
 	// 创建缺省服务连接池对象，该对象一同放入总的连接池集群中
 	if (default_addr != NULL && *default_addr != 0)
@@ -158,6 +173,10 @@ connect_pool& connect_manager::set(const char* addr, size_t count,
 	connect_pool* pool = create_pool(key, count, pools_.size() - 1);
 	pool->set_retry_inter(retry_inter_);
 	pool->set_timeout(conn_timeout, rw_timeout);
+	if (idle_ttl_ >= 0)
+		pool->set_idle_ttl(idle_ttl_);
+	if (check_inter_ > 0)
+		pool->set_check_inter(check_inter_);
 	pools_.push_back(pool);
 
 	lock_.unlock();

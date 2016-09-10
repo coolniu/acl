@@ -26,7 +26,7 @@ public:
 	 * default constructor. You must set the communication method by
 	 * set_client or set_cluster functions.
 	 */
-	redis_command();
+	redis_command(void);
 
 	/**
 	 * 当使用非集群模式时的构造函数，可以使用此构造函数设置 redis 通信类对象。
@@ -51,7 +51,7 @@ public:
 	 */
 	redis_command(redis_client_cluster* cluster, size_t max_conns);
 
-	virtual ~redis_command() = 0;
+	virtual ~redis_command(void);
 
 	/**
 	 * 在重复使用一个继承于 redis_command 的子类操作 redis 时，需要在
@@ -131,9 +131,9 @@ public:
 	 * get memory pool handle be set
 	 * @return {dbuf_pool*}
 	 */
-	dbuf_pool* get_pool() const
+	dbuf_pool* get_dbuf() const
 	{
-		return pool_;
+		return dbuf_;
 	}
 
 	/**
@@ -284,6 +284,27 @@ public:
 	 */
 	void set_slice_respond(bool on);
 
+public:
+	/**
+	 * 直接组合 redis 协议命令方式，从 redis 服务器获得结果
+	 * @param argc {size_t} 后面数组中数组元素个数
+	 * @param argv {const char*[]} redis 命令组成的数组
+	 * @param lens {size_t[]} argv 中数组元素的长度
+	 * @param nchild {size_t} 有的 redis 命令需要获取多个结果集，如：subop
+	 * @return {const redis_result*} 返回的结果集
+	 */
+	const redis_result* request(size_t argc, const char* argv[],
+		size_t lens[], size_t nchild = 0);
+
+	/**
+	 * 直接组合 redis 协议命令方式，从 redis 服务器获得结果
+	 * @param args {const std::vector<string>&} redis 命令组成的数组
+	 * @param nchild {size_t} 有的 redis 命令需要获取多个结果集，如：subop
+	 * @return {const redis_result*} 返回的结果集
+	 */
+	const redis_result* request(const std::vector<string>& args,
+		size_t nchind = 0);
+
 protected:
 	const redis_result* run(size_t nchild = 0);
 	const redis_result* run(redis_client_cluster* cluster, size_t nchild);
@@ -357,7 +378,7 @@ protected:
 
 	/************************** common *********************************/
 protected:
-	dbuf_pool* pool_;
+	dbuf_pool* dbuf_;
 
 	// 根据键值计算哈希槽值
 	void hash_slot(const char* key);
@@ -397,6 +418,8 @@ private:
 	/************************** respond ********************************/
 	bool slice_res_;
 	const redis_result* result_;
+
+	void logger_result(const redis_result* result);
 };
 
 } // namespace acl

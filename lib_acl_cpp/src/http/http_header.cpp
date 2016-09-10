@@ -1,4 +1,5 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/stdlib/log.hpp"
@@ -7,13 +8,14 @@
 #include "acl_cpp/stdlib/url_coder.hpp"
 #include "acl_cpp/http/HttpCookie.hpp"
 #include "acl_cpp/http/http_header.hpp"
+#endif
 
 namespace acl
 {
 
 #define CP(x, y) ACL_SAFE_STRNCPY(x, y, sizeof(x))
 
-http_header::http_header(dbuf_pool* dbuf /* = NULL */)
+http_header::http_header(dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -22,13 +24,13 @@ http_header::http_header(dbuf_pool* dbuf /* = NULL */)
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 	init();
 }
 
-http_header::http_header(const char* url, dbuf_pool* dbuf /* = NULL */)
+http_header::http_header(const char* url, dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -37,7 +39,7 @@ http_header::http_header(const char* url, dbuf_pool* dbuf /* = NULL */)
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 	init();
@@ -45,7 +47,7 @@ http_header::http_header(const char* url, dbuf_pool* dbuf /* = NULL */)
 		set_url(url);
 }
 
-http_header::http_header(int status, dbuf_pool* dbuf /* = NULL */)
+http_header::http_header(int status, dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -54,7 +56,7 @@ http_header::http_header(int status, dbuf_pool* dbuf /* = NULL */)
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 	init();
@@ -64,8 +66,7 @@ http_header::http_header(int status, dbuf_pool* dbuf /* = NULL */)
 http_header::~http_header(void)
 {
 	clear();
-	if (dbuf_internal_)
-		dbuf_internal_->destroy();
+	delete dbuf_internal_;
 }
 
 void http_header::init()
@@ -90,9 +91,6 @@ void http_header::init()
 
 void http_header::clear()
 {
-	std::list<HttpCookie*>::iterator it = cookies_.begin();
-	for (; it != cookies_.end(); ++it)
-		(*it)->~HttpCookie();
 	cookies_.clear();
 	entries_.clear();
 	params_.clear();
@@ -170,8 +168,8 @@ http_header& http_header::add_cookie(const char* name, const char* value,
 	if (name == NULL || *name == 0 || value == NULL)
 		return *this;
 
-	HttpCookie* cookie = new (dbuf_->dbuf_alloc((sizeof(HttpCookie))))
-		HttpCookie(name, value, dbuf_);
+	HttpCookie* cookie = dbuf_->create<HttpCookie, const char*,
+		const char*, dbuf_guard*>(name, value, dbuf_);
 
 	if (domain && *domain)
 		cookie->setDomain(domain);
@@ -188,8 +186,8 @@ http_header& http_header::add_cookie(const HttpCookie* in)
 	if (in == NULL)
 		return *this;
 
-	HttpCookie* cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-		HttpCookie(in);
+	HttpCookie* cookie = dbuf_->create<HttpCookie, const HttpCookie*,
+		dbuf_guard*> (in, dbuf_);
 	cookies_.push_back(cookie);
 	return *this;
 }
@@ -244,7 +242,7 @@ void http_header::build_common(string& buf) const
 //////////////////////////////////////////////////////////////////////////
 // 与 HTTP 请求头相关的函数
 
-http_header& http_header::set_url(const char* url)
+http_header& http_header::set_url(const char* url, bool encoding /* = true */)
 {
 	acl_assert(url && *url);
 
@@ -270,7 +268,12 @@ http_header& http_header::set_url(const char* url)
 
 	// 当 url 中只有相对路径时
 	if (ptr == url_)
-		params = strchr(ptr, '?');
+	{
+		if (encoding)
+			params = strchr(ptr, '?');
+		else
+			params = NULL;
+	}
 
 	// 当 url 为绝对路径时
 	else if ((slash = strchr(ptr, '/')) != NULL && slash > ptr)
@@ -281,7 +284,11 @@ http_header& http_header::set_url(const char* url)
 
 		// 添加主机地址
 		ACL_SAFE_STRNCPY(host_, ptr, n);
-		params = strchr(slash, '?');
+
+		if (encoding)
+			params = strchr(slash, '?');
+		else
+			params = NULL;
 	}
 
 	// 当 url 为绝对路径且主机地址后没有 '/'
@@ -293,7 +300,11 @@ http_header& http_header::set_url(const char* url)
 			url_[len] = '/';
 			url_[len + 1] = 0;
 		}
-		params = strchr(ptr, '?');
+
+		if (encoding)
+			params = strchr(ptr, '?');
+		else
+			params = NULL;
 	}
 
 	if (params == NULL)
@@ -388,6 +399,13 @@ http_header& http_header::set_method(const char* method)
 	CP(method_s_, method);
 
 	return *this;
+}
+
+http_method_t http_header::get_method(string* buf /* = NULL */) const
+{
+	if (buf)
+		*buf = method_s_;
+	return method_;
 }
 
 http_header& http_header::set_range_total(http_off_t total)
@@ -793,6 +811,7 @@ bool http_header::build_response(string& out) const
 			char buf[64];
 			date_format(buf, sizeof(buf), now);
 			out << "Date: " << buf << "\r\n";
+			out << "Server: acl\r\n";
 		}
 	}
 

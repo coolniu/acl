@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
 #include "sqlite3.h"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/charset_conv.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/db/db_sqlite.hpp"
+#endif
 
 #if defined(HAS_SQLITE) || defined(HAS_SQLITE_DLL)
 
@@ -227,6 +229,7 @@ db_sqlite::~db_sqlite(void)
 {
 	close();
 	delete conv_;
+	free_result();
 }
 
 const char* db_sqlite::version() const
@@ -468,11 +471,7 @@ bool db_sqlite::sql_update(const char* sql)
 bool db_sqlite::exec_sql(const char* sql)
 {
 	// 必须将上次的查询结果删除
-	if (result_)
-	{
-		logger_warn("You forgot free result of last query");
-		free_result();
-	}
+	free_result();
 
 	if (sql == NULL || *sql == 0)
 	{

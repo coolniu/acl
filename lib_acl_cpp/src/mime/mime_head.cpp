@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
 #include "internal/mime_state.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/mime/rfc822.hpp"
 #include "acl_cpp/mime/mime_head.hpp"
+#endif
 
 namespace acl {
 
@@ -11,6 +13,8 @@ const static std::list<char*> __dummyList;
 const static std::list<HEADER*> __dummyHeaderList;
 
 mime_head::mime_head()
+	: m_ctype(16)
+	, m_stype(16)
 {
 	m_rcpts = NULL;
 	m_tos = NULL;
@@ -23,8 +27,6 @@ mime_head::mime_head()
 	m_returnpath = NULL;
 	m_subject = NULL;
 	m_boundary = NULL;
-	m_ctype = MIME_CTYPE_OTHER;
-	m_stype = MIME_STYPE_OTHER;
 }
 
 mime_head::~mime_head()
@@ -100,12 +102,12 @@ mime_head& mime_head::reset()
 
 const char* mime_head::get_ctype() const
 {
-	return mime_ctype_name(m_ctype);
+	return m_ctype.c_str();
 }
 
 const char* mime_head::get_stype() const
 {
-	return mime_stype_name(m_stype);
+	return m_stype.c_str();
 }
 
 const acl::string& mime_head::sender() const
@@ -283,10 +285,12 @@ mime_head& mime_head::add_header(const char* name, const char* value)
 	return (*this);
 }
 
-mime_head& mime_head::set_type(size_t ctype, size_t stype)
+mime_head& mime_head::set_type(const char* ctype, const char* stype)
 {
-	m_ctype = ctype;
-	m_stype = stype;
+	if (ctype && *ctype)
+		m_ctype = ctype;
+	if (stype && *stype)
+		m_stype = stype;
 	return (*this);
 }
 

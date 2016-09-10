@@ -1,4 +1,5 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
@@ -6,6 +7,7 @@
 #include "acl_cpp/disque/disque_job.hpp"
 #include "acl_cpp/disque/disque_cond.hpp"
 #include "acl_cpp/disque/disque.hpp"
+#endif
 
 namespace acl
 {
@@ -63,8 +65,8 @@ const char* disque::addjob(const char* name, const void* job, size_t job_len,
 	if (args != NULL && args->empty() == false)
 		argc += args->size() * 2;
 
-	const char** argv = (const char**) pool_->dbuf_alloc(argc * sizeof(char*));
-	size_t* lens = (size_t*) pool_->dbuf_alloc(argc * sizeof(size_t));
+	const char** argv = (const char**) dbuf_->dbuf_alloc(argc * sizeof(char*));
+	size_t* lens = (size_t*) dbuf_->dbuf_alloc(argc * sizeof(size_t));
 
 	argv[0] = "ADDJOB";
 	lens[0] = sizeof("ADDJOB") - 1;
@@ -101,7 +103,7 @@ const char* disque::addjob(const char* name, const void* job, size_t job_len,
 			lens[i] = cit->first.length();
 			i++;
 
-			char* tmp = (char*) pool_->dbuf_alloc(INT_LEN);
+			char* tmp = (char*) dbuf_->dbuf_alloc(INT_LEN);
 			safe_snprintf(tmp, INT_LEN, "%d", cit->second);
 			argv[i] = tmp;
 			lens[i] = strlen(tmp);
@@ -182,8 +184,8 @@ const std::vector<disque_job*>* disque::getjob(const std::vector<string>& names,
 {
 	size_t argc = 2 + names.size() + 4;
 
-	const char** argv = (const char**) pool_->dbuf_alloc(argc * sizeof(char*));
-	size_t* lens = (size_t*) pool_->dbuf_alloc(argc * sizeof(size_t));
+	const char** argv = (const char**) dbuf_->dbuf_alloc(argc * sizeof(char*));
+	size_t* lens = (size_t*) dbuf_->dbuf_alloc(argc * sizeof(size_t));
 
 	argv[0] = "GETJOB";
 	lens[0] = sizeof("GETJOB") - 1;
@@ -195,7 +197,7 @@ const std::vector<disque_job*>* disque::getjob(const std::vector<string>& names,
 		lens[i] = sizeof("TIMEOUT") - 1;
 		i++;
 
-		char* tmp = (char*) pool_->dbuf_alloc(INT_LEN);
+		char* tmp = (char*) dbuf_->dbuf_alloc(INT_LEN);
 		safe_snprintf(tmp, INT_LEN, "%d", (int) timeout);
 		argv[i] = tmp;
 		lens[i] = strlen(tmp);
@@ -208,7 +210,7 @@ const std::vector<disque_job*>* disque::getjob(const std::vector<string>& names,
 		lens[i] = sizeof("COUNT") - 1;
 		i++;
 
-		char* tmp = (char*) pool_->dbuf_alloc(INT_LEN);
+		char* tmp = (char*) dbuf_->dbuf_alloc(INT_LEN);
 		safe_snprintf(tmp, INT_LEN, "%d", (int) count);
 		argv[i] = tmp;
 		lens[i] = strlen(tmp);
@@ -395,8 +397,8 @@ int disque::deljob(const std::vector<string>& job_ids)
 int disque::jobs_bat(const std::vector<string>& job_ids, const char* cmd)
 {
 	size_t argc = 1 + job_ids.size();
-	const char** argv = (const char**) pool_->dbuf_alloc(argc * sizeof(char*));
-	size_t* lens = (size_t*) pool_->dbuf_alloc(argc * sizeof(size_t));
+	const char** argv = (const char**) dbuf_->dbuf_alloc(argc * sizeof(char*));
+	size_t* lens = (size_t*) dbuf_->dbuf_alloc(argc * sizeof(size_t));
 
 	argv[0] = cmd;
 	lens[0] = strlen(cmd);

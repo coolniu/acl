@@ -1,10 +1,12 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/redis/redis_client.hpp"
 #include "acl_cpp/redis/redis_result.hpp"
 #include "acl_cpp/redis/redis_list.hpp"
+#endif
 
 namespace acl
 {
@@ -356,8 +358,8 @@ bool redis_list::bpop(const char* cmd, const std::vector<const char*>& keys,
 	size_t timeout, std::pair<string, string>& result)
 {
 	size_t argc = 2 + keys.size();
-	const char** args = (const char**) pool_->dbuf_alloc(argc * sizeof(char*));
-	size_t* lens = (size_t*) pool_->dbuf_alloc(argc * sizeof(size_t));
+	const char** args = (const char**) dbuf_->dbuf_alloc(argc * sizeof(char*));
+	size_t* lens = (size_t*) dbuf_->dbuf_alloc(argc * sizeof(size_t));
 
 	args[0] = cmd;
 	lens[0] = strlen(cmd);
@@ -384,8 +386,8 @@ bool redis_list::bpop(const char* cmd, const std::vector<string>& keys,
 	size_t timeout, std::pair<string, string>& result)
 {
 	size_t argc = 2 + keys.size();
-	const char** args = (const char**) pool_->dbuf_alloc(argc * sizeof(char*));
-	size_t* lens = (size_t*) pool_->dbuf_alloc(argc * sizeof(size_t));
+	const char** args = (const char**) dbuf_->dbuf_alloc(argc * sizeof(char*));
+	size_t* lens = (size_t*) dbuf_->dbuf_alloc(argc * sizeof(size_t));
 
 	args[0] = cmd;
 	lens[0] = strlen(cmd);

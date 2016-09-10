@@ -15,6 +15,7 @@
 #include "stdlib/acl_vstream.h"
 #include "stdlib/acl_fifo.h"
 #include "stdlib/acl_mystring.h"
+#include "net/acl_sane_socket.h"
 #include "event/acl_events.h"
 
 #endif  /* ACL_PREPARE_COMPILE */
@@ -138,20 +139,19 @@ static void stream_on_close(ACL_VSTREAM *stream, void *arg)
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < ev->event.fdcnt_ready
-		&& ev->event.fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < ev->event.ready_cnt
+		&& ev->event.ready[fdp->fdidx_ready] == fdp)
 	{
-		ev->event.fdtabs_ready[fdp->fdidx_ready] = NULL;
+		ev->event.ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 	event_fdtable_free(fdp);
 	stream->fdp = NULL;
 }
 
-static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+static ACL_EVENT_FDTABLE *read_enable(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
 {
-	const char *myname = "event_enable_read";
 	EVENT_KERNEL *ev = (EVENT_KERNEL *) eventp;
 	ACL_EVENT_FDTABLE *fdp = (ACL_EVENT_FDTABLE *) stream->fdp;
 	ACL_SOCKET sockfd = ACL_VSTREAM_SOCK(stream);
@@ -164,6 +164,7 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 		acl_ring_append(&ev->fdp_delay_list, &fdp->delay_entry);
 		fdp->flag |= EVENT_FDTABLE_FLAG_DELAY_OPER;
 		stream->fdp = (void *) fdp;
+
 		/* 添加流关闭时的回调函数 */
 		acl_vstream_add_close_handle(stream, stream_on_close, eventp);
 	} else if ((fdp->flag & EVENT_FDTABLE_FLAG_ADD_READ)) {
@@ -192,6 +193,7 @@ END:
 		fdp->fdidx = eventp->fdcnt;
 		eventp->fdtabs[eventp->fdcnt++] = fdp;
 	}
+
 	if (eventp->maxfd != ACL_SOCKET_INVALID && eventp->maxfd < sockfd)
 		eventp->maxfd = sockfd;
 
@@ -201,12 +203,30 @@ END:
 	}
 
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
 		fdp->r_timeout = 0;
 	}
+
+	return fdp;
+}
+
+static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
+}
+
+static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
 }
 
 static void event_enable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream,
@@ -256,7 +276,7 @@ END:
 	}
 
 	if (timeout > 0) {
-		fdp->w_timeout = timeout * 1000000;
+		fdp->w_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->w_ttl = eventp->present + fdp->w_timeout;
 	} else {
 		fdp->w_ttl = 0;
@@ -324,10 +344,10 @@ DEL_READ_TAG:
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 }
@@ -391,10 +411,10 @@ DEL_WRITE_TAG:
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 }
@@ -444,7 +464,7 @@ static void enable_read(EVENT_KERNEL *ev, ACL_EVENT_FDTABLE *fdp)
 
 	if (fdp->h_iocp == NULL) {
 		fdp->h_iocp = CreateIoCompletionPort((HANDLE) sockfd,
-						ev->h_iocp, (DWORD) fdp, 0);
+			ev->h_iocp, (ULONG_PTR) fdp, 0);
 		if (fdp->h_iocp != ev->h_iocp)
 			acl_msg_fatal("%s(%d): CreateIoCompletionPort error(%s)",
 				myname, __LINE__, acl_last_serror());
@@ -584,7 +604,7 @@ static void enable_write(EVENT_KERNEL *ev, ACL_EVENT_FDTABLE *fdp)
 
 	if (fdp->h_iocp == NULL) {
 		fdp->h_iocp = CreateIoCompletionPort((HANDLE) sockfd,
-					ev->h_iocp, (DWORD) fdp, 0);
+			ev->h_iocp, (ULONG_PTR) fdp, 0);
 		if (fdp->h_iocp != ev->h_iocp)
 			acl_msg_fatal("%s(%d): CreateIoCompletionPort error(%s)",
 				myname, __LINE__, acl_last_serror());
@@ -644,11 +664,13 @@ static void event_set_all(ACL_EVENT *eventp)
 	ACL_EVENT_FDTABLE *fdp;
 	int   i;
 
-	/* 优先处理添加读/写监控任务, 这样可以把中间的 ADD 状态转换成正式状态 */
+	/* 优先处理添加读/写监控任务, 这样可以把 ADD 中间态转换成正式状态 */
 
-	eventp->fdcnt_ready = 0;
+	eventp->ready_cnt = 0;
 
-	if (eventp->present - eventp->last_check >= eventp->check_inter) {
+	if (eventp->present - eventp->last_check >= eventp->check_inter
+		|| eventp->read_ready > 0)
+	{
 		eventp->last_check = eventp->present;
 		event_check_fds(eventp);
 	}
@@ -728,12 +750,12 @@ static void event_loop(ACL_EVENT *eventp)
 	event_set_all(eventp);
 
 	if (eventp->fdcnt == 0) {
-		if (eventp->fdcnt_ready == 0)
+		if (eventp->ready_cnt == 0)
 			sleep(1);
 		goto TAG_DONE;
 	}
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		delay = 0;
 
 TAG_DONE:
@@ -752,13 +774,15 @@ TAG_DONE:
 		timer_fn  = timer->callback;
 		timer_arg = timer->context;
 
-		/* 如果定时器的时间间隔 > 0 且允许定时器被循环调用，则再重设定时器 */
+		/* 如果定时器的时间间隔 > 0 且允许定时器被循环调用，
+		 * 则再重设定时器
+		 */
 		if (timer->delay > 0 && timer->keep) {
 			timer->ncount++;
 			eventp->timer_request(eventp, timer->callback,
 				timer->context, timer->delay, timer->keep);
 		} else {
-			acl_ring_detach(&timer->ring);		/* first this */
+			acl_ring_detach(&timer->ring);  /* first this */
 			timer->nrefer--;
 			if (timer->nrefer != 0)
 				acl_msg_fatal("%s(%d): nrefer(%d) != 0",
@@ -796,9 +820,9 @@ TAG_DONE:
 				| ACL_EVENT_RW_TIMEOUT)))
 			{
 				fdp->event_type |= ACL_EVENT_XCPT;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready] = fdp;
-				eventp->fdcnt_ready++;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt] = fdp;
+				eventp->ready_cnt++;
 			}
 			continue;
 		}
@@ -814,17 +838,19 @@ TAG_DONE:
 		if (iocp_event->type == IOCP_EVENT_READ) {
 			acl_assert(fdp->event_read == iocp_event);
 			iocp_event->type &= ~IOCP_EVENT_READ;
-			fdp->stream->sys_read_ready = 1;
 			if ((fdp->event_type & (ACL_EVENT_READ
 				| ACL_EVENT_WRITE)) == 0)
 			{
 				fdp->event_type |= ACL_EVENT_READ;
-				if (fdp->listener)
-					fdp->event_type |= ACL_EVENT_ACCEPT;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready] = fdp;
-				eventp->fdcnt_ready++;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt] = fdp;
+				eventp->ready_cnt++;
 			}
+
+			if (fdp->listener)
+				fdp->event_type |= ACL_EVENT_ACCEPT;
+			else
+				fdp->stream->read_ready = 1;
 		}
 		if (iocp_event->type == IOCP_EVENT_WRITE) {
 			acl_assert(fdp->event_write == iocp_event);
@@ -833,15 +859,15 @@ TAG_DONE:
 				| ACL_EVENT_WRITE)) == 0)
 			{
 				fdp->event_type |= ACL_EVENT_WRITE;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready] = fdp;
-				eventp->fdcnt_ready++;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt] = fdp;
+				eventp->ready_cnt++;
 			}
 		}
 		delay = 0;
 	}
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		event_fire(eventp);
 	eventp->nested--;
 }
@@ -891,7 +917,7 @@ ACL_EVENT *event_new_iocp(int fdsize acl_unused)
 	eventp->free_fn              = event_free;
 	eventp->enable_read_fn       = event_enable_read;
 	eventp->enable_write_fn      = event_enable_write;
-	eventp->enable_listen_fn     = event_enable_read;
+	eventp->enable_listen_fn     = event_enable_listen;
 	eventp->disable_read_fn      = event_disable_read;
 	eventp->disable_write_fn     = event_disable_write;
 	eventp->disable_readwrite_fn = event_disable_readwrite;

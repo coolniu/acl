@@ -1,8 +1,11 @@
 SHELL = /bin/sh
-CC      = g++
-AR      = ar
+#CC      = g++
+CC	= ${ENV_CC}
+#AR      = ar
+AR      = ${ENV_AR}
 ARFL    = rv
-RANLIB  = ranlib
+#RANLIB  = ranlib
+RANLIB  = ${ENV_RANLIB}
 
 #OSNAME = $(shell uname -sm)
 #OSTYPE = $(shell uname -p)
@@ -27,6 +30,23 @@ MAKE_ARGS =
 
 SYSLIB = -lpthread -lz
 LDFLAGS = -shared
+polarssl =
+
+ifeq ($(CC),)
+        CC = g++
+endif
+
+ifeq ($(AR),)
+	AR = ar
+endif
+
+ifeq ($(RANLIB),)
+	RANLIB = ranlib
+endif
+
+ifeq ($(findstring on, $(polarssl)), on)
+	CFLAGS += -DHAS_POLARSSL
+endif
 
 ifeq ($(findstring Linux, $(OSNAME)), Linux)
 	ifeq ($(findstring i686, $(OSTYPE)), i686)
@@ -61,13 +81,21 @@ endif
 ##############################################################################
 
 .PHONY = check help all_lib all samples all clean install uninstall uninstall_all build_bin build_src build_one
-VERSION = 3.1.3
+VERSION = 3.1.5
 
 help:
 	@(echo "usage: make help|all|all_lib|all_samples|clean|install|uninstall|uninstall_all|build_bin|build_src|build_one")
 all_lib:
+	@if test "$(polarssl)" = "on"; then \
+		export ENV_FLAGS=$(ENV_FLAGS):HAS_POLARSSL; \
+	else \
+		export ENV_FLAGS=$(ENV_FLAGS); \
+	fi
+	@(cd lib_acl; make pch)
 	@(cd lib_acl; make $(MAKE_ARGS))
 	@(cd lib_protocol; make $(MAKE_ARGS))
+	@(cd lib_acl_cpp; make check)
+	@(cd lib_acl_cpp; make pch)
 	@(cd lib_acl_cpp; make $(MAKE_ARGS))
 	@(cd lib_rpc; make $(MAKE_ARGS))
 all_samples: all_lib

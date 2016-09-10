@@ -9,7 +9,7 @@ static bool test_zadd(acl::redis_zset& redis, int i, const char* key,
 		nmember++;
 
 	// 从连接对象中获得统一的内存池分配对象，分配小内存块
-	acl::dbuf_pool* pool = redis.get_pool();
+	acl::dbuf_pool* pool = redis.get_dbuf();
 	// 动态分配数据块指针数组内存
 	const char** members = (const char**)
 		pool->dbuf_alloc(nmember * sizeof(char*));
@@ -190,7 +190,7 @@ static bool test_zrange(acl::redis_zset& redis, int i, const char* key,
 
 static bool test_del(acl::redis_key& redis, int i, const char* key)
 {
-	int ret = redis.del(key, NULL) < 0 ? false : true;
+	int ret = redis.del(key) < 0 ? false : true;
 	if (ret < 0)
 		printf("del %s error, i: %d\r\n", key, i);
 	else if (i < 10)

@@ -151,11 +151,14 @@ static void mime_node_free(MIME_NODE *node)
 	if (node->charset)
 		acl_myfree(node->charset);
 
+	if (node->ctype_s)
+		acl_myfree(node->ctype_s);
+	if (node->stype_s)
+		acl_myfree(node->stype_s);
+
 	acl_vstring_free(node->buffer);
 	if (node->boundary)
 		acl_vstring_free(node->boundary);
-	if (node->body)
-		acl_vstring_free(node->body);
 	acl_myfree(node);
 }
 
@@ -492,4 +495,17 @@ const char *mime_stype_name(size_t stype)
 	if (stype > MIME_STYPE_MAX || stype < MIME_STYPE_MIN)
 		return (OTHER_NAME);
 	return (mime_stype_map[stype - MIME_STYPE_MIN].name);
+}
+
+const char *mime_head_value(MIME_NODE* node, const char* name)
+{
+	ACL_ITER iter;
+	acl_foreach(iter, node->header_list)
+	{
+		HEADER_NV* hdr = (HEADER_NV*) iter.data;
+		if (strcasecmp(hdr->name, name) == 0 && *hdr->value)
+			return (hdr->value);
+	}
+
+	return NULL;
 }

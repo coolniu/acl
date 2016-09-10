@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/stdlib/util.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/queue/queue_manager.hpp"
+#endif
 
 #ifdef ACL_WINDOWS
 #define PATH_SEP	'\\'
@@ -307,8 +309,7 @@ bool queue_manager::cache_check(queue_file* fp)
 	else if (it->second != fp)
 	{
 		m_queueLocker.unlock();
-		logger_error("%s not match, %lu, %lu", fp->key(),
-			(unsigned long) fp, (unsigned long)it->second);
+		logger_error("%s no match %p %p", fp->key(), fp, it->second);
 		return false;
 	}
 	m_queueLocker.unlock();

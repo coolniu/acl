@@ -68,7 +68,7 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
@@ -130,7 +130,7 @@ static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
@@ -187,7 +187,7 @@ static void event_enable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->w_timeout = timeout * 1000000;
+		fdp->w_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->w_ttl = eventp->present + fdp->w_timeout;
 	} else {
 		fdp->w_ttl = 0;
@@ -345,7 +345,7 @@ static void event_loop(ACL_EVENT *eventp)
 
 	THREAD_UNLOCK(&event_thr->event.tm_mutex);
 
-	eventp->fdcnt_ready = 0;
+	eventp->ready_cnt = 0;
 
 	if (eventp->present - eventp->last_check >= eventp->check_inter) {
 		eventp->last_check = eventp->present;
@@ -356,7 +356,7 @@ static void event_loop(ACL_EVENT *eventp)
 
 			THREAD_UNLOCK(&event_thr->event.tb_mutex);
 
-			if (eventp->fdcnt_ready == 0)
+			if (eventp->ready_cnt == 0)
 				sleep(1);
 
 			nready = 0;
@@ -369,7 +369,7 @@ static void event_loop(ACL_EVENT *eventp)
 
 		THREAD_UNLOCK(&event_thr->event.tb_mutex);
 
-		if (eventp->fdcnt_ready > 0)
+		if (eventp->ready_cnt > 0)
 			delay = 0;
 	} else {
 		THREAD_LOCK(&event_thr->event.tb_mutex);
@@ -404,23 +404,25 @@ static void event_loop(ACL_EVENT *eventp)
 
 		revents = event_thr->fdset[i].revents;
 		if ((revents & POLLIN) != 0) {
-			fdp->stream->sys_read_ready = 1;
 			if ((fdp->event_type & ACL_EVENT_READ) == 0) {
 				fdp->event_type |= ACL_EVENT_READ;
-				if (fdp->listener)
-					fdp->event_type |= ACL_EVENT_ACCEPT;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready] = fdp;
-				eventp->fdcnt_ready++;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt] = fdp;
+				eventp->ready_cnt++;
 			}
+
+			if (fdp->listener)
+				fdp->event_type |= ACL_EVENT_ACCEPT;
+			else
+				fdp->stream->read_ready = 1;
 		} else if ((revents & POLLOUT) != 0) {
 			fdp->event_type |= ACL_EVENT_WRITE;
-			fdp->fdidx_ready = eventp->fdcnt_ready;
-			eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+			fdp->fdidx_ready = eventp->ready_cnt;
+			eventp->ready[eventp->ready_cnt++] = fdp;
 		} else if ((revents & (POLLHUP | POLLERR)) != 0) {
 			fdp->event_type |= ACL_EVENT_XCPT;
-			fdp->fdidx_ready = eventp->fdcnt_ready;
-			eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+			fdp->fdidx_ready = eventp->ready_cnt;
+			eventp->ready[eventp->ready_cnt++] = fdp;
 		}
 	}
 
@@ -459,7 +461,7 @@ TAG_DONE:
 		timer_fn(ACL_EVENT_TIME, eventp, timer_arg);
 	}
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		event_thr_fire(eventp);
 }
 
@@ -496,6 +498,7 @@ ACL_EVENT *event_poll_alloc_thr(int fdsize)
 
 	snprintf(event_thr->event.event.name,
 		sizeof(event_thr->event.event.name), "thread events - poll");
+
 	event_thr->event.event.event_mode           = ACL_EVENT_POLL;
 	event_thr->event.event.use_thread           = 1;
 	event_thr->event.event.loop_fn              = event_loop;

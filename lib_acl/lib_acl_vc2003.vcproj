@@ -273,6 +273,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				Name="stdlib"
 				Filter="">
 				<File
+					RelativePath=".\src\stdlib\acl_atomic.c">
+				</File>
+				<File
 					RelativePath=".\src\stdlib\acl_chunk_chain.c">
 				</File>
 				<File
@@ -283,6 +286,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				</File>
 				<File
 					RelativePath=".\src\stdlib\acl_getopt.c">
+				</File>
+				<File
+					RelativePath=".\src\stdlib\acl_mbox.c">
 				</File>
 				<File
 					RelativePath=".\src\stdlib\acl_meter_time.c">
@@ -424,6 +430,12 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 						RelativePath=".\src\stdlib\common\acl_token_tree.c">
 					</File>
 					<File
+						RelativePath=".\src\stdlib\common\acl_ypipe.c">
+					</File>
+					<File
+						RelativePath=".\src\stdlib\common\acl_yqueue.c">
+					</File>
+					<File
 						RelativePath=".\src\stdlib\common\avl.c">
 					</File>
 				</Filter>
@@ -481,6 +493,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 						RelativePath=".\src\stdlib\sys\acl_safe_getenv.c">
 					</File>
 					<File
+						RelativePath=".\src\stdlib\sys\acl_sane_socketpair.c">
+					</File>
+					<File
 						RelativePath=".\src\stdlib\sys\acl_sys_file.c">
 					</File>
 					<File
@@ -517,9 +532,6 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 							RelativePath=".\src\stdlib\sys\unix\acl_safe_open.c">
 						</File>
 						<File
-							RelativePath=".\src\stdlib\sys\unix\acl_sane_socketpair.c">
-						</File>
-						<File
 							RelativePath=".\src\stdlib\sys\unix\acl_set_eugid.c">
 						</File>
 						<File
@@ -529,10 +541,10 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 							RelativePath=".\src\stdlib\sys\unix\acl_timed_wait.c">
 						</File>
 						<File
-							RelativePath=".\src\stdlib\sys\unix\acl_transfer_fd.c">
+							RelativePath=".\src\stdlib\sys\unix\acl_trace.c">
 						</File>
 						<File
-							RelativePath=".\src\stdlib\sys\unix\acl_trace.c">
+							RelativePath=".\src\stdlib\sys\unix\acl_transfer_fd.c">
 						</File>
 						<File
 							RelativePath=".\src\stdlib\sys\unix\acl_username.c">
@@ -785,6 +797,24 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				Filter="">
 				<File
 					RelativePath=".\src\xml\acl_xml.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2_parse.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2_util.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3_parse.c">
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3_util.c">
 				</File>
 				<File
 					RelativePath=".\src\xml\acl_xml_parse.c">
@@ -1091,9 +1121,6 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 						RelativePath=".\src\master\template\acl_ioctl_server.c">
 					</File>
 					<File
-						RelativePath=".\src\master\template\master_log.c">
-					</File>
-					<File
 						RelativePath=".\src\master\template\acl_multi_server.c">
 					</File>
 					<File
@@ -1107,6 +1134,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 					</File>
 					<File
 						RelativePath=".\src\master\template\acl_udp_server.c">
+					</File>
+					<File
+						RelativePath=".\src\master\template\master_log.c">
 					</File>
 					<File
 						RelativePath=".\src\master\template\master_log.h">
@@ -1316,7 +1346,7 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				RelativePath=".\resource.h">
 			</File>
 			<Filter
-				Name="stdlb"
+				Name="stdlib"
 				Filter="">
 				<File
 					RelativePath=".\include\stdlib\acl_allocator.h">
@@ -1326,6 +1356,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				</File>
 				<File
 					RelativePath=".\include\stdlib\acl_array.h">
+				</File>
+				<File
+					RelativePath=".\include\stdlib\acl_atomic.h">
 				</File>
 				<File
 					RelativePath=".\include\stdlib\acl_binhash.h">
@@ -1433,6 +1466,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 					RelativePath=".\include\stdlib\acl_malloc.h">
 				</File>
 				<File
+					RelativePath=".\include\stdlib\acl_mbox.h">
+				</File>
+				<File
 					RelativePath=".\include\stdlib\acl_mem_hook.h">
 				</File>
 				<File
@@ -1523,6 +1559,12 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 					RelativePath=".\include\stdlib\acl_xinetd_cfg.h">
 				</File>
 				<File
+					RelativePath=".\include\stdlib\acl_ypipe.h">
+				</File>
+				<File
+					RelativePath=".\include\stdlib\acl_yqueue.h">
+				</File>
+				<File
 					RelativePath=".\include\stdlib\avl.h">
 				</File>
 				<File
@@ -1559,10 +1601,10 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 						RelativePath=".\include\stdlib\unix\acl_timed_wait.h">
 					</File>
 					<File
-						RelativePath=".\include\stdlib\unix\acl_transfer_fd.h">
+						RelativePath=".\include\stdlib\unix\acl_trace.h">
 					</File>
 					<File
-						RelativePath=".\include\stdlib\unix\acl_trace.h">
+						RelativePath=".\include\stdlib\unix\acl_transfer_fd.h">
 					</File>
 					<File
 						RelativePath=".\include\stdlib\unix\acl_unix.h">
@@ -1658,6 +1700,12 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				Filter="">
 				<File
 					RelativePath=".\include\xml\acl_xml.h">
+				</File>
+				<File
+					RelativePath=".\include\xml\acl_xml2.h">
+				</File>
+				<File
+					RelativePath=".\include\xml\acl_xml3.h">
 				</File>
 			</Filter>
 			<Filter

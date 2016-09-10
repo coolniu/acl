@@ -25,6 +25,7 @@
 #include "stdlib/acl_debug.h"
 #include "stdlib/acl_vstream.h"
 #include "stdlib/acl_fifo.h"
+#include "net/acl_sane_socket.h"
 #include "stdlib/acl_meter_time.h"	/* just for performance test */
 #include "event/acl_events.h"
 
@@ -68,8 +69,7 @@ static void stream_on_close(ACL_VSTREAM *stream, void *arg)
 	int   err = 0, ret = 0;
 
 	if (fdp == NULL)
-		acl_msg_fatal("%s(%d): fdp null, sockfd(%d)",
-			myname, __LINE__, sockfd);
+		return;
 
 #ifdef EVENT_REG_DEL_BOTH
 	if ((fdp->flag & EVENT_FDTABLE_FLAG_READ)
@@ -136,17 +136,18 @@ static void stream_on_close(ACL_VSTREAM *stream, void *arg)
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < ev->event.fdcnt_ready
-		&& ev->event.fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < ev->event.ready_cnt
+		&& ev->event.ready[fdp->fdidx_ready] == fdp)
 	{
-		ev->event.fdtabs_ready[fdp->fdidx_ready] = NULL;
+		ev->event.ready[fdp->fdidx_ready] = NULL;
 	}
+
 	fdp->fdidx_ready = -1;
 	event_fdtable_free(fdp);
 	stream->fdp = NULL;
 }
 
-static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+static ACL_EVENT_FDTABLE *read_enable(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
 {
 	EVENT_KERNEL *ev = (EVENT_KERNEL *) eventp;
@@ -155,11 +156,11 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 
 	if (fdp == NULL) {
 		fdp = event_fdtable_alloc();
-
 		fdp->flag = EVENT_FDTABLE_FLAG_ADD_READ | EVENT_FDTABLE_FLAG_EXPT;
 		fdp->stream = stream;
 		acl_ring_append(&ev->fdp_delay_list, &fdp->delay_entry);
 		fdp->flag |= EVENT_FDTABLE_FLAG_DELAY_OPER;
+
 		stream->fdp = (void *) fdp;
 		/* 添加流关闭时的回调函数 */
 		acl_vstream_add_close_handle(stream, stream_on_close, eventp);
@@ -200,13 +201,38 @@ END:
 		fdp->r_context = context;
 	}
 
+	if (stream->read_ready || ACL_VSTREAM_BFRD_CNT(stream) > 0)
+		eventp->read_ready++;
+
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
 		fdp->r_timeout = 0;
 	}
+
+	return fdp;
+}
+
+static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+#if defined(ACL_MACOSX)
+	fdp->listener = 1;
+#else
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
+#endif
+}
+
+static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
 }
 
 static void event_enable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream,
@@ -258,7 +284,7 @@ END:
 	}
 
 	if (timeout > 0) {
-		fdp->w_timeout = timeout * 1000000;
+		fdp->w_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->w_ttl = eventp->present + fdp->w_timeout;
 	} else {
 		fdp->w_ttl = 0;
@@ -326,10 +352,10 @@ DEL_READ_TAG:
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 }
@@ -393,10 +419,10 @@ DEL_WRITE_TAG:
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 }
@@ -450,10 +476,10 @@ static void event_disable_readwrite(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 	acl_fdmap_del(ev->fdmap, sockfd);
 #endif
 	if (fdp->fdidx_ready >= 0
-	    && fdp->fdidx_ready < eventp->fdcnt_ready
-	    && eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+	    && fdp->fdidx_ready < eventp->ready_cnt
+	    && eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 	event_fdtable_free(fdp);
@@ -588,11 +614,14 @@ static void event_set_all(ACL_EVENT *eventp)
 	EVENT_KERNEL *ev = (EVENT_KERNEL *) eventp;
 	ACL_EVENT_FDTABLE *fdp;
 
-	/* 优先处理添加读/写监控任务, 这样可以把中间的 ADD 状态转换成正式状态 */
+	/* 优先处理添加读/写监控任务, 这样可以把 ADD 中间态转换成正式状态 */
 
-	eventp->fdcnt_ready = 0;
+	eventp->ready_cnt = 0;
 
-	if (eventp->present - eventp->last_check >= eventp->check_inter) {
+	if (eventp->present - eventp->last_check >= eventp->check_inter
+		|| eventp->read_ready > 0)
+	{
+		eventp->read_ready = 0;
 		eventp->last_check = eventp->present;
 		event_check_fds(eventp);
 	}
@@ -660,14 +689,14 @@ static void event_loop(ACL_EVENT *eventp)
 	event_set_all(eventp);
 
 	if (eventp->fdcnt == 0) {
-		if (eventp->fdcnt_ready == 0)
+		if (eventp->ready_cnt == 0)
 			sleep(1);
 		goto TAG_DONE;
 	}
 
 	/* 如果已经有描述字准备好则检测超时时间置 0 */
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		delay = 0;
 
 	/* 调用 epoll/kquque/devpoll 系统调用检测可用描述字 */
@@ -713,38 +742,42 @@ static void event_loop(ACL_EVENT *eventp)
 
 		/* 检查描述字是否可读 */
 
-		if ((fdp->flag & EVENT_FDTABLE_FLAG_READ) && EVENT_TEST_READ(bp)) {
-
-			/* 该描述字可读则设置 ACL_VSTREAM 的系统可读标志从而触发
-			 * ACL_VSTREAM 流在读时调用系统的 read 函数
-			 */
-
-			fdp->stream->sys_read_ready = 1;
-
+		if ((fdp->flag & EVENT_FDTABLE_FLAG_READ)
+			&& EVENT_TEST_READ(bp))
+		{
 			/* 给该描述字对象附加可读属性 */
-
-			if ((fdp->event_type & (ACL_EVENT_READ | ACL_EVENT_WRITE)) == 0)
+			if ((fdp->event_type & (ACL_EVENT_READ
+				| ACL_EVENT_WRITE)) == 0)
 			{
 				fdp->event_type |= ACL_EVENT_READ;
-				if (fdp->listener)
-					fdp->event_type |= ACL_EVENT_ACCEPT;
-
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt++] = fdp;
 			}
+
+			if (fdp->listener)
+				fdp->event_type |= ACL_EVENT_ACCEPT;
+
+			/* 该描述字可读则设置 ACL_VSTREAM 的系统可读标志从而
+			 * 触发 ACL_VSTREAM 流在读时调用系统的 read 函数
+			 */
+			else
+				fdp->stream->read_ready = 1;
 		}
 
 		/* 检查描述字是否可写 */
 
-		if ((fdp->flag & EVENT_FDTABLE_FLAG_WRITE) && EVENT_TEST_WRITE(bp)) {
+		if ((fdp->flag & EVENT_FDTABLE_FLAG_WRITE)
+			&& EVENT_TEST_WRITE(bp))
+		{
 
 			/* 给该描述字对象附加可写属性 */
 
-			if ((fdp->event_type & (ACL_EVENT_READ | ACL_EVENT_WRITE)) == 0)
+			if ((fdp->event_type & (ACL_EVENT_READ
+				| ACL_EVENT_WRITE)) == 0)
 			{
 				fdp->event_type |= ACL_EVENT_WRITE;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt++] = fdp;
 			}
 		}
 
@@ -752,11 +785,12 @@ static void event_loop(ACL_EVENT *eventp)
 		if (EVENT_TEST_ERROR(bp)) {
 			/* 如果出现异常则设置异常属性 */
 
-			if ((fdp->event_type & (ACL_EVENT_READ | ACL_EVENT_WRITE)) == 0)
+			if ((fdp->event_type & (ACL_EVENT_READ
+				| ACL_EVENT_WRITE)) == 0)
 			{
 				fdp->event_type |= ACL_EVENT_XCPT;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt++] = fdp;
 			}
 		}
 #endif
@@ -765,11 +799,11 @@ static void event_loop(ACL_EVENT *eventp)
 TAG_DONE:
 
 	/*
-	 * Deliver timer events. Requests are sorted: we can stop when we reach
-	 * the future or the list end. Allow the application to update the timer
-	 * queue while it is being called back. To this end, we repeatedly pop
-	 * the first request off the timer queue before delivering the event to
-	 * the application.
+	 * Deliver timer events. Requests are sorted: we can stop when we
+	 * reach the future or the list end. Allow the application to update
+	 * the timer queue while it is being called back. To this end, we
+	 * repeatedly pop the first request off the timer queue before
+	 * delivering the event to the application.
 	 */
 
 	/* 调整事件引擎的时间截 */
@@ -800,7 +834,7 @@ TAG_DONE:
 
 	/* 处理准备好的描述字事件 */
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		event_fire(eventp);
 
 	eventp->nested--;
@@ -855,7 +889,7 @@ ACL_EVENT *event_new_kernel(int fdsize acl_unused)
 	eventp->free_fn              = event_free;
 	eventp->enable_read_fn       = event_enable_read;
 	eventp->enable_write_fn      = event_enable_write;
-	eventp->enable_listen_fn     = event_enable_read;
+	eventp->enable_listen_fn     = event_enable_listen;
 	eventp->disable_read_fn      = event_disable_read;
 	eventp->disable_write_fn     = event_disable_write;
 	eventp->disable_readwrite_fn = event_disable_readwrite;

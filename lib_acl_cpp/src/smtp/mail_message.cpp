@@ -1,4 +1,5 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include <list>
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/util.hpp"
@@ -13,6 +14,7 @@
 #include "acl_cpp/smtp/mail_attach.hpp"
 #include "acl_cpp/smtp/mail_body.hpp"
 #include "acl_cpp/smtp/mail_message.hpp"
+#endif
 
 namespace acl
 {
@@ -234,7 +236,7 @@ bool mail_message::append_addr(const rfc822_addr& addr, string& out)
 	if (addr.comment)
 	{
 		out.append("\"");
-		if (rfc2047::encode(addr.comment, strlen(addr.comment),
+		if (rfc2047::encode(addr.comment, (int) strlen(addr.comment),
 			&out, charset_, 'B', false) == false)
 		{
 			logger_error("rfc2047::encode(%s) error",

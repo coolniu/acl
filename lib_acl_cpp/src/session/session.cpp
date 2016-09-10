@@ -1,10 +1,12 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include <utility>
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/escape.hpp"
 #include "acl_cpp/session/session.hpp"
+#endif
 
 namespace acl
 {
@@ -14,11 +16,11 @@ session::session(time_t ttl /* = 0 */, const char* sid /* = NULL */)
 , ttl_(ttl)
 , dirty_(false)
 {
-	struct timeval tv;
-
-	(void) gettimeofday(&tv, NULL);
 	if (sid == NULL || *sid == 0)
 	{
+		struct timeval tv;
+
+		(void) gettimeofday(&tv, NULL);
 		sid_.format("acl.%d.%d.%d", (int) tv.tv_sec,
 			(int) tv.tv_usec, rand());
 		sid_.todo_ = TODO_NUL;
@@ -191,6 +193,8 @@ const char* session::get(const char* name)
 
 const session_string* session::get_buf(const char* name)
 {
+	attrs_clear(attrs_);
+
 	if (get_attrs(attrs_) == false)
 		return NULL;
 
@@ -198,6 +202,28 @@ const session_string* session::get_buf(const char* name)
 	if (cit == attrs_.end())
 		return NULL;
 	return &cit->second;
+}
+
+bool session::get_attrs(const std::vector<string>& names,
+	std::vector<session_string>& values)
+{
+	attrs_clear(attrs_);
+
+	if (get_attrs(attrs_) == false)
+		return false;
+
+	for (std::vector<string>::const_iterator cit = names.begin();
+		cit != names.end(); ++cit)
+	{
+		std::map<string, session_string>::const_iterator cit2
+			= attrs_.find(*cit);
+		if (cit2 != attrs_.end())
+			values.push_back(cit2->second);
+		else
+			values.push_back("");
+	}
+
+	return true;
 }
 
 bool session::set_ttl(time_t ttl, bool delay)
@@ -213,12 +239,14 @@ bool session::set_ttl(time_t ttl, bool delay)
 		return true;
 	}
 
+#if 0
 	// 如果该 sid 还没有在后端 cache 上存储过，则仅在对象中本地设置一下
 	else if (!sid_saved_)
 	{
 		ttl_ = ttl;
 		return true;
 	}
+#endif
 
 	// 修改后端 cache 上针对该 sid 的 ttl
 	else if (set_timeout(ttl) == true)

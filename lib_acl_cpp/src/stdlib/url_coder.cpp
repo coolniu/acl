@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/url_coder.hpp"
+#endif
 
 namespace acl
 {
@@ -124,7 +126,8 @@ url_coder& url_coder::set(const char* name, const char* value,
 {
 	if (name == NULL || *name == 0 || value == NULL || *value == 0)
 	{
-		logger_error("invalid input");
+		//logger_error("invalid input: name: [%s], value: [%s]",
+		//	name ? name : "null", value ? value : "null");
 		return *this;
 	}
 

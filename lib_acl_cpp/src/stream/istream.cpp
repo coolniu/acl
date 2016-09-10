@@ -1,7 +1,9 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stream/istream.hpp"
+#endif
 
 namespace acl {
 
@@ -51,7 +53,7 @@ bool istream::gets(void* buf, size_t* size, bool nonl /* = true */)
 		return false;
 	} else {
 		*size = ret;
-		if ((stream_->flag | ACL_VSTREAM_FLAG_TAGYES))
+		if ((stream_->flag & ACL_VSTREAM_FLAG_TAGYES))
 			return true;
 		return false;
 	}
@@ -153,7 +155,6 @@ bool istream::gets(string& s, bool nonl /* = true */, size_t max /* = 0 */)
 			s.append(buf, size);
 		max -= size;
 
-		// 如果读到的行长度达到最大限制，则直接返回 true
 		if (max == 0)
 		{
 			logger_warn("reached the max limit: %d",
@@ -256,7 +257,8 @@ bool istream::read_peek(string& buf, bool clear /* = false */)
 	if (clear)
 		buf.clear();
 
-	if (acl_vstream_read_peek(stream_, buf.vstring()) == ACL_VSTREAM_EOF)
+	int n = acl_vstream_read_peek(stream_, buf.vstring());
+	if (n == ACL_VSTREAM_EOF)
 	{
 #if ACL_EWOULDBLOCK == ACL_EAGAIN
 		if (stream_->errnum != ACL_EWOULDBLOCK)
@@ -269,6 +271,8 @@ bool istream::read_peek(string& buf, bool clear /* = false */)
 		}
 		return false;
 	}
+	else if (n == 0)
+		return false;
 	else
 		return true;
 }

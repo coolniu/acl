@@ -16,6 +16,7 @@
 #include "stdlib/acl_fifo.h"
 #include "stdlib/acl_mystring.h"
 #include "stdlib/acl_htable.h"
+#include "net/acl_sane_socket.h"
 #include "event/acl_events.h"
 
 #endif  /* ACL_PREPARE_COMPILE */
@@ -82,10 +83,10 @@ static void stream_on_close(ACL_VSTREAM *stream, void *arg)
 	}
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < ev->event.fdcnt_ready
-		&& ev->event.fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < ev->event.ready_cnt
+		&& ev->event.ready[fdp->fdidx_ready] == fdp)
 	{
-		ev->event.fdtabs_ready[fdp->fdidx_ready] = NULL;
+		ev->event.ready[fdp->fdidx_ready] = NULL;
 		fdp->fdidx_ready = -1;
 	}
 	event_fdtable_free(fdp);
@@ -111,10 +112,10 @@ static ACL_EVENT_FDTABLE *stream_on_open(EVENT_WMSG *ev, ACL_VSTREAM *stream)
 	return fdp;
 }
 
-static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+static ACL_EVENT_FDTABLE *read_enable(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
 {
-	const char *myname = "event_enable_read";
+	const char *myname = "read_enable";
 	EVENT_WMSG *ev = (EVENT_WMSG *) eventp;
 	ACL_SOCKET sockfd = ACL_VSTREAM_SOCK(stream);
 	ACL_EVENT_FDTABLE *fdp = (ACL_EVENT_FDTABLE *) stream->fdp;
@@ -158,6 +159,24 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 		fdp->r_ttl = 0;
 		fdp->r_timeout = 0;
 	}
+
+	return fdp;
+}
+
+static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
+}
+
+static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
+	int timeout, ACL_EVENT_NOTIFY_RDWR callback, void *context)
+{
+	ACL_EVENT_FDTABLE *fdp = read_enable(eventp, stream, timeout,
+			callback, context);
+	fdp->listener = acl_is_listening_socket(ACL_VSTREAM_SOCK(stream));
 }
 
 static void event_enable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream,
@@ -254,10 +273,10 @@ static void event_disable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 
@@ -311,10 +330,10 @@ static void event_disable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 	fdp->fdidx = -1;
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 
@@ -363,10 +382,10 @@ static void event_disable_readwrite(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 	WSAAsyncSelect(sockfd, ev->hWnd, ev->nMsg, FD_CLOSE);
 
 	if (fdp->fdidx_ready >= 0
-		&& fdp->fdidx_ready < eventp->fdcnt_ready
-		&& eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+		&& fdp->fdidx_ready < eventp->ready_cnt
+		&& eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	fdp->fdidx_ready = -1;
 	event_fdtable_free(fdp);
@@ -457,7 +476,7 @@ static EVENT_WMSG *get_hwnd_event(HWND hWnd)
 
 static void set_hwnd_event(HWND hWnd, EVENT_WMSG *ev)
 {
-	SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG) ev);
+	SetWindowLongPtr(hWnd, GWLP_USERDATA, (ULONG_PTR) ev);
 }
 
 #endif
@@ -539,7 +558,7 @@ static void handleRead(EVENT_WMSG *ev, ACL_SOCKET sockfd)
 		/* 该描述字可读则设置 ACL_VSTREAM 的系统可读标志从而触发
 		 * ACL_VSTREAM 流在读时调用系统的 read 函数
 		 */
-		fdp->stream->sys_read_ready = 1;
+		fdp->stream->read_ready = 1;
 		fdp->r_callback(ACL_EVENT_READ, &ev->event,
 			fdp->stream, fdp->r_context);
 	}
@@ -843,7 +862,7 @@ ACL_EVENT *event_new_wmsg(UINT nMsg)
 	eventp->free_fn              = event_free;
 	eventp->enable_read_fn       = event_enable_read;
 	eventp->enable_write_fn      = event_enable_write;
-	eventp->enable_listen_fn     = event_enable_read;
+	eventp->enable_listen_fn     = event_enable_listen;
 	eventp->disable_read_fn      = event_disable_read;
 	eventp->disable_write_fn     = event_disable_write;
 	eventp->disable_readwrite_fn = event_disable_readwrite;

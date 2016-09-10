@@ -1,6 +1,7 @@
 #include "acl_stdafx.hpp"
 #include "internal/header_opts.hpp"
 #include "internal/mime_state.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/pipe_stream.hpp"
 #include "acl_cpp/mime/mime_define.hpp"
 #include "acl_cpp/mime/rfc2047.hpp"
@@ -9,6 +10,7 @@
 #include "acl_cpp/stream/ofstream.hpp"
 #include "acl_cpp/mime/mime_code.hpp"
 #include "acl_cpp/mime/mime_node.hpp"
+#endif
 
 #define	SCOPY(x, y)	ACL_SAFE_STRNCPY((x), (y), sizeof((x)))
 
@@ -55,10 +57,20 @@ mime_node::mime_node(const char* emailFile, const MIME_NODE* node,
 	m_bodyEnd = node->body_data_end + off;
 }
 
-mime_node::~mime_node()
+mime_node::~mime_node(void)
 {
 	delete m_headers_;
 	delete m_pParent;
+}
+
+const char* mime_node::get_ctype_s(void) const
+{
+	return m_pMimeNode->ctype_s ? m_pMimeNode->ctype_s : "";
+}
+
+const char* mime_node::get_stype_s(void) const
+{
+	return m_pMimeNode->stype_s ? m_pMimeNode->stype_s : "";
 }
 
 const char* mime_node::header_value(const char* name) const
@@ -269,6 +281,22 @@ int mime_node::parent_stype() const
 	if (m_pMimeNode->parent == NULL)
 		return (MIME_STYPE_OTHER);
 	return (m_pMimeNode->parent->stype);
+}
+
+const char* mime_node::parent_ctype_s(void) const
+{
+	if (m_pMimeNode->parent == NULL)
+		return "";
+	const char* ptr = m_pMimeNode->parent->ctype_s;
+	return ptr ? ptr : "";
+}
+
+const char* mime_node::parent_stype_s(void) const
+{
+	if (m_pMimeNode->parent == NULL)
+		return "";
+	const char* ptr = m_pMimeNode->parent->stype_s;
+	return ptr ? ptr : "";
 }
 
 int mime_node::parent_encoding() const

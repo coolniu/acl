@@ -3,9 +3,7 @@
 
 #include "stdafx.h"
 #include "lib_acl.h"
-#ifdef WIN32
-#include <vld.h>
-#else
+#ifndef WIN32
 #include <getopt.h>
 #endif
 #include <string>
@@ -129,7 +127,17 @@ static void mime_test1(acl::mime& mime, const char* path, bool htmlFirst)
 
 	ACL_METER_TIME("---------------parse end  --------------------");
 
-	pBody = mime.get_body_node(htmlFirst, true, "iso-2022-jp");
+	const char* ctype = mime.get_ctype();
+	bool is_text;
+	if (!strcasecmp(ctype, "multipart") ||  !strcasecmp(ctype, "text"))
+		is_text = true;
+	else
+		is_text = false;
+
+	if (is_text)
+		pBody = mime.get_body_node(htmlFirst, true, "iso-2022-jp");
+	else
+		pBody = mime.get_body_node(htmlFirst, false, NULL);
 
 	//////////////////////////////////////////////////////////////////////
 
@@ -141,6 +149,9 @@ static void mime_test1(acl::mime& mime, const char* path, bool htmlFirst)
 
 	header_out(&mime);
 	mime.mime_debug("./var");
+
+	printf(">>>ctype: %s, stype: %s\r\n",
+		mime.get_ctype(), mime.get_stype());
 
 	buf = "./var/";
 	buf += path;
@@ -170,7 +181,7 @@ static void mime_test1(acl::mime& mime, const char* path, bool htmlFirst)
 	//////////////////////////////////////////////////////////////////////
 
 	// 将邮件正文内容以 utf-8 存在磁盘上
-	if (pBody)
+	if (pBody && is_text)
 	{
 		printf("\r\n");
 		ACL_METER_TIME("---------------save_body begin--------------------");
@@ -249,7 +260,18 @@ static void mime_test1(acl::mime& mime, const char* path, bool htmlFirst)
 	for (; cit != attaches.end(); cit++)
 	{
 		buf = "./var/";
-		buf << (*cit)->get_filename();
+		const char* filename = (*cit)->get_filename();
+		if (filename != NULL)
+			buf << filename;
+		else
+		{
+			filename = (*cit)->header_value("Content-ID");
+			if (filename == NULL || *filename == 0)
+				continue;
+			acl::string tmp(filename);
+			tmp.strip("<>", true);
+			buf << tmp;
+		}
 
 		acl::string attach_name;
 		acl::rfc2047 rfc2047;
@@ -264,6 +286,27 @@ static void mime_test1(acl::mime& mime, const char* path, bool htmlFirst)
 	}
 
 	printf(">>>> saved attach file ok ...\r\n");
+	//////////////////////////////////////////////////////////////////////
+	// 遍历所有节点
+	printf("------------------------------------------------------\r\n");
+
+	acl::string tmp;
+	int i = 0;
+	const std::list<acl::mime_node*>& nodes = mime.get_mime_nodes();
+	for (std::list<acl::mime_node*>::const_iterator cit2 = nodes.begin();
+		cit2 != nodes.end(); ++cit2)
+	{
+		printf("ctype: %s, stype: %s, begin: %ld, end: %ld\r\n",
+			(*cit2)->get_ctype_s(), (*cit2)->get_stype_s(),
+			(long) (*cit2)->get_bodyBegin(),
+			(long) (*cit2)->get_bodyEnd());
+		tmp.format("var/node-%d-body.txt", i++);
+		(*cit2)->save(tmp);
+		printf(">>>save to file: %s\r\n", tmp.c_str());
+	}
+
+	printf("------------------------------------------------------\r\n");
+
 	//////////////////////////////////////////////////////////////////////
 
 	// 将解析后的邮件再重新组合并保存在磁盘上
@@ -447,6 +490,7 @@ int main(int argc, char* argv[])
 	bool  htmlFirst = false;
 	acl::string path("test.eml");
 	acl::string cmd("test1");
+	acl::log::stdout_open(true);
 
 	while ((ch = (char) getopt(argc, argv, "hst:f:")) > 0)
 	{

@@ -59,8 +59,11 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 			__FILE__, __LINE__, myname, sockfd);
 
 	fdp = stream->fdp;
-	if (fdp == NULL)
+	if (fdp == NULL) {
 		fdp = event_fdtable_alloc();
+		fdp->listener = 0;
+	} else
+		fdp->listener = 0;
 
 	if (fdp->flag & EVENT_FDTABLE_FLAG_WRITE)
 		acl_msg_panic("%s(%d)->%s: fd %d: multiple I/O request",
@@ -79,7 +82,6 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 		stream->fdp = (void *) fdp;
 		stream->nrefer++;
 		fdp->stream = stream;
-		fdp->listener = 0;
 		fdp->fdidx = eventp->fdcnt;
 		eventp->fdtabs[eventp->fdcnt] = fdp;
 		eventp->fdcnt++;
@@ -94,7 +96,7 @@ static void event_enable_read(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
@@ -130,8 +132,11 @@ static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 			__FILE__, __LINE__, myname, sockfd);
 
 	fdp = stream->fdp;
-	if (fdp == NULL)
+	if (fdp == NULL) {
 		fdp = event_fdtable_alloc();
+		fdp->listener = 1;
+	} else
+		fdp->listener = 1;
 
 	if (fdp->flag & EVENT_FDTABLE_FLAG_WRITE)
 		acl_msg_panic("%s(%d)->%s: fd %d: multiple I/O request",
@@ -150,7 +155,6 @@ static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 		stream->fdp = (void *) fdp;
 		stream->nrefer++;
 		fdp->stream = stream;
-		fdp->listener = 1;
 		fdp->fdidx = eventp->fdcnt;
 		eventp->fdtabs[eventp->fdcnt] = fdp;
 		eventp->fdcnt++;
@@ -165,7 +169,7 @@ static void event_enable_listen(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->r_timeout = timeout * 1000000;
+		fdp->r_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->r_ttl = eventp->present + fdp->r_timeout;
 	} else {
 		fdp->r_ttl = 0;
@@ -232,7 +236,7 @@ static void event_enable_write(ACL_EVENT *eventp, ACL_VSTREAM *stream,
 	}
 
 	if (timeout > 0) {
-		fdp->w_timeout = timeout * 1000000;
+		fdp->w_timeout = ((acl_int64) timeout) * 1000000;
 		fdp->w_ttl = eventp->present + fdp->w_timeout;
 	} else {
 		fdp->w_ttl = 0;
@@ -259,8 +263,6 @@ static void event_disable_readwrite(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 
 	THREAD_LOCK(&event_thr->event.tb_mutex);
 	if (!FD_ISSET(sockfd, &event_thr->xmask)) {
-		acl_msg_error("%s(%d): sockfd(%d) not be set",
-			myname, __LINE__, sockfd);
 		THREAD_UNLOCK(&event_thr->event.tb_mutex);
 		return;
 	}
@@ -293,10 +295,10 @@ static void event_disable_readwrite(ACL_EVENT *eventp, ACL_VSTREAM *stream)
 			myname, __LINE__, fdp->fdidx);
 
 	if (fdp->fdidx_ready > 0
-	    && fdp->fdidx_ready < eventp->fdcnt_ready
-	    && eventp->fdtabs_ready[fdp->fdidx_ready] == fdp)
+	    && fdp->fdidx_ready < eventp->ready_cnt
+	    && eventp->ready[fdp->fdidx_ready] == fdp)
 	{
-		eventp->fdtabs_ready[fdp->fdidx_ready] = NULL;
+		eventp->ready[fdp->fdidx_ready] = NULL;
 	}
 	event_fdtable_free(fdp);
 	stream->fdp = NULL;
@@ -364,12 +366,12 @@ static void event_loop(ACL_EVENT *eventp)
 
 	THREAD_LOCK(&event_thr->event.tb_mutex);
 
-	eventp->fdcnt_ready = 0;
+	eventp->ready_cnt = 0;
 
 	if (event_thr_prepare(eventp) == 0) {
 		THREAD_UNLOCK(&event_thr->event.tb_mutex);
 
-		if (eventp->fdcnt_ready == 0) {
+		if (eventp->ready_cnt == 0) {
 			select_delay /= 1000000;
 			if (select_delay <= 0)
 				select_delay = 1;
@@ -380,7 +382,7 @@ static void event_loop(ACL_EVENT *eventp)
 		goto TAG_DONE;
 	}
 
-	if (eventp->fdcnt_ready > 0) {
+	if (eventp->ready_cnt > 0) {
 		tv.tv_sec  = 0;
 		tv.tv_usec = 0;
 		tvp = &tv;
@@ -401,7 +403,6 @@ static void event_loop(ACL_EVENT *eventp)
 	event_thr->event.blocked = 1;
 	nready = select((int) eventp->maxfd + 1, &rmask, &wmask, &xmask, tvp);
 	event_thr->event.blocked = 0;
-
 	if (nready < 0) {
 		if (acl_last_error() != ACL_EINTR)
 			acl_msg_fatal("%s(%d), %s: event_loop: select: %s",
@@ -415,7 +416,7 @@ static void event_loop(ACL_EVENT *eventp)
 	for (i = 0; i < eventp->fdcnt; i++) {
 		fdp = eventp->fdtabs[i];
 
-		/* if fdp has been set in eventp->fdtabs_ready ? */
+		/* if fdp has been set in eventp->ready ? */
 		if ((fdp->event_type & (ACL_EVENT_XCPT | ACL_EVENT_RW_TIMEOUT)))
 			continue;
 
@@ -423,25 +424,27 @@ static void event_loop(ACL_EVENT *eventp)
 
 		if (FD_ISSET(sockfd, &xmask)) {
 			fdp->event_type |= ACL_EVENT_XCPT;
-			fdp->fdidx_ready = eventp->fdcnt_ready;
-			eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+			fdp->fdidx_ready = eventp->ready_cnt;
+			eventp->ready[eventp->ready_cnt++] = fdp;
 			continue;
 		}
 
 		if (FD_ISSET(sockfd, &rmask)) {
-			fdp->stream->sys_read_ready = 1;
-			/* has been set in fdtabs_ready ? */
+			/* has been set in ready ? */
 			if ((fdp->event_type & ACL_EVENT_READ) == 0) {
 				fdp->event_type |= ACL_EVENT_READ;
-				if (fdp->listener)
-					fdp->event_type |= ACL_EVENT_ACCEPT;
-				fdp->fdidx_ready = eventp->fdcnt_ready;
-				eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+				fdp->fdidx_ready = eventp->ready_cnt;
+				eventp->ready[eventp->ready_cnt++] = fdp;
 			}
+
+			if (fdp->listener)
+				fdp->event_type |= ACL_EVENT_ACCEPT;
+			else
+				fdp->stream->read_ready = 1;
 		} else if (fdp->w_callback && FD_ISSET(sockfd, &wmask)) {
 			fdp->event_type |= ACL_EVENT_WRITE;
-			fdp->fdidx_ready = eventp->fdcnt_ready;
-			eventp->fdtabs_ready[eventp->fdcnt_ready++] = fdp;
+			fdp->fdidx_ready = eventp->ready_cnt;
+			eventp->ready[eventp->ready_cnt++] = fdp;
 		}
 	}
 
@@ -485,7 +488,7 @@ TAG_DONE:
 		acl_myfree(timer);
 	}
 
-	if (eventp->fdcnt_ready > 0)
+	if (eventp->ready_cnt > 0)
 		event_thr_fire(eventp);
 }
 

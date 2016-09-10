@@ -2,6 +2,7 @@
 #include "acl_cpp/acl_cpp_define.hpp"
 #include <list>
 #include <vector>
+#include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/pipe_stream.hpp"
 
 struct ACL_JSON_NODE;
@@ -23,7 +24,7 @@ class json;
 /**
  * json 节点，该类对象必须以 json.create_node() 方式创建
  */
-class ACL_CPP_API json_node
+class ACL_CPP_API json_node : public dbuf_obj
 {
 public:
 	/**
@@ -55,13 +56,19 @@ public:
 
 	/**
 	 * 当 json 节点为长整型类型时，该函数返回长整型值的指针地址
-	 * @return {long long int*} 当返回 NULL 时表示该对象非长整型类型
+	 * @return {const long long int*} 当返回 NULL 时表示该对象非长整型类型
 	 */
 #if defined(_WIN32) || defined(_WIN64)
 	const __int64* get_int64(void) const;
 #else
 	const long long int* get_int64(void) const;
 #endif
+
+	/**
+	 * 当 json 节点为浮点类型时，该函数返回长整型值的指针地址
+	 * @return {const double*} 当返回 NULL 时表示该对象非浮点类型
+	 */
+	const double *get_double(void) const;
 
 	/**
 	 * 当 json 节点为布尔类型时，该函数返回布尔值的指针地址
@@ -80,6 +87,12 @@ public:
 	 * @return {bool}
 	 */
 	bool is_number(void) const;
+
+	/**
+	 * 判断本节点数据是否为浮点类型
+	 * @return {bool}
+	 */
+	bool is_double(void) const;
 
 	/**
 	 * 判断本节点数据是否为布尔类型
@@ -221,6 +234,17 @@ public:
 #endif
 
 	/**
+	 * 创建一个 double 类型的 json 节点对象，并将之添加为本 json 节点的子节点
+	 * @param tag {const char*} 标签名
+	 * @param value {double} 标签值
+	 * @param return_child {bool} 是否需要本函数返回新创建的子节点的引用
+	 * @return {json_node&} return_child 为 true 时创建的新节点的引用，
+	 *  否则返回本 json 节点对象的引用
+	 */
+	json_node& add_double(const char* tag, double value,
+		bool return_child = false);
+
+	/**
 	 * 创建一个布尔类型的 json 节点对象，并将之添加为本 json 节点的子节点
 	 * @param tag {const char*} 标签名
 	 * @param value {bool} 标签值
@@ -257,6 +281,15 @@ public:
 #endif
 
 	/**
+	 * 创建一个 json double 对象，并将之添加为本 json 节点的子节点
+	 * @param value {double} 值
+	 * @param return_child {bool} 是否需要本函数返回新创建的子节点的引用
+	 * @return {json_node&} return_child 为 true 时创建的新节点的引用，
+	 *  否则返回本 json 节点对象的引用
+	 */
+	json_node& add_array_double(double value, bool return_child = false);
+
+	/**
 	 * 创建一个 json 布尔对象，并将之添加为本 json 节点的子节点
 	 * @param value {bool} 布尔值
 	 * @param return_child {bool} 是否需要本函数返回新创建的子节点的引用
@@ -287,6 +320,8 @@ public:
 	 */
 	json_node* next_child(void);
 
+	const char* operator[] (const char* tag);
+
 	/**
 	 * 返回该 json 节点在整个 json 树中的深度
 	 * @return {int}
@@ -300,9 +335,16 @@ public:
 	int   children_count(void) const;
 
 	/**
-	 * 当在遍历该 json 节点时，内部会动态产生一些临时 json_node 对象，调用此函数
-	 * 可以清空这些对象，一旦调用此函数进行了清除，则由 first_child/next_child
-	 * 返回的 json_node 节点对象将不再可用，否则会产生内存非法访问
+	 * 将本节点及其子节点从 json 树中删除，其内存将由 json 对象统一释放
+	 * @return {int} 被释放的节点数量
+	 */
+	int detach(void);
+
+	/**
+	 * 当在遍历该 json 节点时，内部会动态产生一些临时 json_node 对象，调用
+	 * 此函数可以清空这些对象，一旦调用此函数进行了清除，则由 first_child,
+	 * next_child 返回的 json_node 节点对象将不再可用，否则会产生内存非法
+	 * 访问
 	 */
 	void clear(void);
 
@@ -354,13 +396,14 @@ private:
 #else
 		long long int n;
 #endif
-		bool b;
+		bool   b;
+		double d;
 	} node_val_;
 
 	void prepare_iter(void);
 };
 
-class ACL_CPP_API json : public pipe_stream
+class ACL_CPP_API json : public pipe_stream, public dbuf_obj
 {
 public:
 	/**
@@ -465,6 +508,22 @@ public:
 		getElementsByTags(const char* tags) const;
 
 	/**
+	 * 从 json 对象中获得所有的与给定多级标签名相同的 json 节点的集合
+	 * @param tags {const char*} 多级标签名，由 '/' 分隔各级标签名，
+	 *  如针对 json 数据：
+	 *  { 'root': [
+	 *      'first': { 'second': { 'third': 'test1' } },
+	 *      'first': { 'second': { 'third': 'test2' } },
+	 *      'first': { 'second': { 'third': 'test3' } }
+	 *    ]
+	 *  }
+	 *  可以通过多级标签名：root/first/second/third 一次性查出所有符合
+	 *  条件的节点
+	 * @return {json_node*} 返回 NULL 表示不存在
+	 */
+	json_node* getFirstElementByTags(const char* tags) const;
+
+	/**
 	 * 取得 acl 库中的 ACL_JSON 对象
 	 * @return {ACL_JSON*} 该值不可能为空，注意用户可以修改该对象的值，
 	 *  但不可以释放该对象
@@ -501,6 +560,17 @@ public:
 
 	/**
 	 * 创建一个 json_node 叶节点对象，该节点对象的格式为：
+	 * "tag_name": tag_value
+	 * @param tag {const char*} 标签名
+	 * @param value {double} 标签值
+	 * @return {json_node&} 新产生的 json_node 对象不需要用户手工释放，
+	 *  因为在 json 对象被释放时这些节点会自动被释放，当然用户也可以在
+	 *  不用时调用 reset 来释放这些 json_node 节点对象
+	 */
+	json_node& create_double(const char* tag, double value);
+
+	/**
+	 * 创建一个 json_node 叶节点对象，该节点对象的格式为：
 	 * "tag_name": true|false
 	 * @param tag {const char*} 标签名
 	 * @param value {bool} 标签值
@@ -533,6 +603,16 @@ public:
 #else
 	json_node& create_array_number(long long int value);
 #endif
+
+	/**
+	 * 创建一个 json_node 叶节点数值对象
+	 * 按 json 规范，该节点只能加入至数组对象中
+	 * @param value {double} 值
+	 * @return {json_node&} 新产生的 json_node 对象不需要用户手工释放，
+	 *  因为在 json 对象被释放时这些节点会自动被释放，当然用户也可以在
+	 * 不用时调用 reset 来释放这些 json_node 节点对象
+	 */
+	json_node& create_array_double(double value);
 
 	/**
 	 * 创建一个 json_node 叶节点布尔对象

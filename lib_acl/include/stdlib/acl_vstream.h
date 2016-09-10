@@ -87,7 +87,7 @@ struct ACL_VSTREAM {
 	int   read_buf_len;             /**< read_buf's capacity */
 	int   read_cnt;                 /**< data's length in read_buf */
 	unsigned char *read_ptr;        /**< pointer to next position in read_buf */
-	int   sys_read_ready;           /**< if the system buffer has some data */
+	int   read_ready;               /**< if the system buffer has some data */
 
 	acl_off_t total_read_cnt;       /**< total read count of the fp */
 	acl_off_t total_write_cnt;      /**< total write count of the fp */
@@ -114,11 +114,10 @@ struct ACL_VSTREAM {
 #define	ACL_VSTREAM_FLAG_CONNECT        (1 << 15)
 #define	ACL_VSTREAM_FLAG_SOCKPAIR       (1 << 16)
 
-#define	ACL_VSTREAM_FLAG_TAGYES	        (1 << 17) /* 若读到要求的标志位的要求则置位 */
-#define	ACL_VSTREAM_FLAG_TAGNO          (1 << 18) /* 没有找到标志位 */
+#define	ACL_VSTREAM_FLAG_TAGYES	        (1 << 17) /* 若读到要求的标志位则置位 */
 
-#define	ACL_VSTREAM_FLAG_CONNECTING     (1 << 19) /* 正在连接过程中 */
-#define	ACL_VSTREAM_FLAG_PREREAD	(1 << 20) /* 对于 acl_vstream_can_read 调用过程是否允许预读 */
+#define	ACL_VSTREAM_FLAG_CONNECTING     (1 << 18) /* 正在连接过程中 */
+#define	ACL_VSTREAM_FLAG_PREREAD	(1 << 19) /* 对于 acl_vstream_can_read 调用过程是否允许预读 */
 
 	char  errbuf[128];              /**< error info */
 	int   errnum;                   /**< record the system errno here */
@@ -841,6 +840,11 @@ ACL_API void acl_vstream_set_local_addr(ACL_VSTREAM *fp,
 ACL_API int acl_vstream_add_object(ACL_VSTREAM *fp, const char *key, void *obj);
 ACL_API int acl_vstream_del_object(ACL_VSTREAM *fp, const char *key);
 ACL_API void *acl_vstream_get_object(ACL_VSTREAM *fp, const char *key);
+
+ACL_API void acl_socket_read_hook(ACL_VSTREAM_RD_FN read_fn);
+ACL_API void acl_socket_write_hook(ACL_VSTREAM_WR_FN write_fn);
+ACL_API void acl_socket_writev_hook(ACL_VSTREAM_WV_FN writev_fn);
+ACL_API void acl_socket_close_hook(int (*close_fn)(ACL_SOCKET));
 
 /**
  * 设定流的读/写套接字

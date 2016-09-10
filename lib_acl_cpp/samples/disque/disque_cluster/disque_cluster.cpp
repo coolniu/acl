@@ -76,7 +76,7 @@ static bool test_getjob(acl::disque& cmd, int max, int& i, int count)
 	if (!job_ids.empty() && !test_ackjob(cmd, job_ids, i))
 		return false;
 
-	i += jobs->size();
+	i += (int) jobs->size();
 
 	if (i >= 2 * (int) count)
 		return true;
@@ -291,13 +291,14 @@ int main(int argc, char* argv[])
 
 	acl::acl_cpp_init();
 
-	acl::disque_client_cluster cluster(conn_timeout, rw_timeout);
+	acl::disque_client_cluster cluster;
 	const std::vector<acl::string>& tokens = addrs.split2(",; \t");
 	std::vector<acl::string>::const_iterator cit;
 	for (cit = tokens.begin(); cit != tokens.end(); ++cit)
 	{
 		printf("add disque-server: %s\r\n", (*cit).c_str());
-		cluster.set((*cit).c_str(), max_threads);
+		cluster.set((*cit).c_str(), max_threads,
+			conn_timeout, rw_timeout);
 	}
 
 	std::vector<test_thread*> threads;

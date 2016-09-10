@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 #include "stdlib/acl_define.h"
-#ifdef ACL_UNIX
 
 extern char *acl_var_threads_procname;
 extern char *acl_var_threads_log_file;
@@ -56,7 +55,11 @@ extern int   acl_var_threads_delay_sec;
 extern int   acl_var_threads_delay_usec;
 
 #define	ACL_VAR_THREADS_EVENT_MODE		"ioctl_event_mode"
+#ifdef ACL_UNIX
+#define	ACL_DEF_THREADS_EVENT_MODE		"kernel"
+#else
 #define	ACL_DEF_THREADS_EVENT_MODE		"select"
+#endif
 extern char *acl_var_threads_event_mode;
 
 #define	ACL_VAR_THREADS_DAEMON_TIMEOUT		"ioctl_daemon_timeout"
@@ -72,7 +75,11 @@ extern int   acl_var_threads_master_maxproc;
 extern int   acl_var_threads_max_accept;
 
 #define	ACL_VAR_THREADS_ENABLE_DOG		"ioctl_enable_dog"
+#ifdef ACL_UNIX
+#define	ACL_DEF_THREADS_ENABLE_DOG		0
+#else
 #define	ACL_DEF_THREADS_ENABLE_DOG		1
+#endif
 extern int   acl_var_threads_enable_dog;
 
 #define	ACL_VAR_THREADS_QUICK_ABORT		"ioctl_quick_abort"
@@ -130,8 +137,6 @@ extern char *acl_var_threads_dispatch_addr;
 #define	ACL_VAR_THREADS_DISPATCH_TYPE		"ioctl_dispatch_type"
 #define	ACL_DEF_THREADS_DISPATCH_TYPE		"default"
 extern char *acl_var_threads_dispatch_type;
-
-#endif /* ACL_UNIX */
 
 #ifdef	__cplusplus
 }

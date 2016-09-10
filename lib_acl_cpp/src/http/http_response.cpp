@@ -1,4 +1,5 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/xml.hpp"
 #include "acl_cpp/stdlib/json.hpp"
@@ -9,6 +10,7 @@
 #include "acl_cpp/http/http_pipe.hpp"
 #include "acl_cpp/http/http_client.hpp"
 #include "acl_cpp/http/http_response.hpp"
+#endif
 
 namespace acl
 {
@@ -18,7 +20,7 @@ http_response::http_response(socket_stream* client)
 	debug_ = false;
 	header_ok_ = false;
 	head_sent_ = false;
-	client_ = NEW http_client(client);
+	client_ = NEW http_client(client, false, true);
 }
 
 http_response::~http_response(void)

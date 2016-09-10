@@ -1,14 +1,16 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/http/http_header.hpp"
 #include "acl_cpp/http/HttpCookie.hpp"
+#endif
 
 namespace acl
 {
 
 HttpCookie::HttpCookie(const char* name, const char* value,
-	dbuf_pool* dbuf /* = NULL */)
+	dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -17,7 +19,7 @@ HttpCookie::HttpCookie(const char* name, const char* value,
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 
@@ -27,7 +29,7 @@ HttpCookie::HttpCookie(const char* name, const char* value,
 	dummy_[0] = 0;
 }
 
-HttpCookie::HttpCookie(dbuf_pool* dbuf /* = NULL */)
+HttpCookie::HttpCookie(dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -36,7 +38,7 @@ HttpCookie::HttpCookie(dbuf_pool* dbuf /* = NULL */)
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 
@@ -45,7 +47,7 @@ HttpCookie::HttpCookie(dbuf_pool* dbuf /* = NULL */)
 	dummy_[0] = 0;
 }
 
-HttpCookie::HttpCookie(const HttpCookie* cookie, dbuf_pool* dbuf /* = NULL */)
+HttpCookie::HttpCookie(const HttpCookie* cookie, dbuf_guard* dbuf /* = NULL */)
 {
 	if (dbuf != NULL)
 	{
@@ -54,11 +56,14 @@ HttpCookie::HttpCookie(const HttpCookie* cookie, dbuf_pool* dbuf /* = NULL */)
 	}
 	else
 	{
-		dbuf_internal_ = new dbuf_pool;
+		dbuf_internal_ = new dbuf_guard;
 		dbuf_ = dbuf_internal_;
 	}
 
 	dummy_[0] = 0;
+
+	acl_assert(cookie);
+
 	if (cookie->name_)
 		name_ = dbuf_->dbuf_strdup(cookie->name_);
 	else
@@ -81,8 +86,7 @@ HttpCookie::HttpCookie(const HttpCookie* cookie, dbuf_pool* dbuf /* = NULL */)
 
 HttpCookie::~HttpCookie(void)
 {
-	if (dbuf_internal_)
-		dbuf_internal_->destroy();
+	delete dbuf_internal_;
 }
 
 void HttpCookie::destroy(void)

@@ -23,7 +23,7 @@ public:
 	/**
 	 * see redis_command::redis_command()
 	 */
-	redis_hash();
+	redis_hash(void);
 
 	/**
 	 * see redis_command::redis_command(redis_client*)
@@ -31,11 +31,11 @@ public:
 	redis_hash(redis_client* conn);
 
 	/**
-	 * see redis_command::redis_command(redis_client_cluster*， size_t)
+	 * see redis_command::redis_command(redis_client_cluster*, size_t)
 	 */
-	redis_hash(redis_client_cluster* cluster, size_t max_conns);
+	redis_hash(redis_client_cluster* cluster, size_t max_conns = 0);
 
-	virtual ~redis_hash();
+	virtual ~redis_hash(void);
 
 	/////////////////////////////////////////////////////////////////////
 
@@ -211,12 +211,18 @@ public:
 	 *  return the number of fields be removed successfully, or -1 when
 	 *  error happened or operating on a no hash key
 	 */
-	int hdel(const char* key, const char* first_name, ...);
+	int hdel(const char* key, const char* first_name);
 	int hdel(const char* key, const char* names[], size_t argc);
 	int hdel(const char* key, const char* names[],
 		const size_t names_len[], size_t argc);
 	int hdel(const char* key, const std::vector<string>& names);
 	int hdel(const char* key, const std::vector<const char*>& names);
+	int hdel_fields(const char* key, const char* names[], size_t argc);
+	int hdel_fields(const char* key, const char* names[],
+		const size_t names_len[], size_t argc);
+	int hdel_fields(const char* key, const std::vector<string>& names);
+	int hdel_fields(const char* key, const std::vector<const char*>& names);
+	int hdel_fields(const char* key, const char* first_name, ...);
 
 	/**
 	 * 当某个 key 对象中的某个域字段为整数时，对其进行加减操作

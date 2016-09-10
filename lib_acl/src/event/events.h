@@ -50,6 +50,7 @@ struct ACL_EVENT_FDTABLE {
 #define EVENT_FDTABLE_FLAG_DEL_WRITE    (1 << 7)
 #define EVENT_FDTABLE_FLAG_DELAY_OPER   (1 << 8)
 #define EVENT_FDTABLE_FLAG_IOCP         (1 << 9)
+#define	EVENT_FDTABLE_FLAG_FIRE		(1 << 10)
 
 	int   fdidx;
 	int   fdidx_ready;
@@ -86,6 +87,8 @@ struct	ACL_EVENT {
 	int   delay_sec;
 	/* 事件引擎的最大等待时间(微秒) */
 	int   delay_usec;
+	/* 本次循环前缓冲区有数据可读的描述字个数 */
+	int   read_ready;
 	/* 定时器任务列表头 */
 	ACL_RING timer_head;
 
@@ -94,11 +97,11 @@ struct	ACL_EVENT {
 	/* 当前套接字个数 */
 	int   fdcnt;
 	/* 事件循环时准备好的套接字个数 */
-	int   fdcnt_ready;
+	int   ready_cnt;
 	/* 套接字事件对象表集合 */
 	ACL_EVENT_FDTABLE **fdtabs;
 	/* 准备好的套接字事件对象表集合 */
-	ACL_EVENT_FDTABLE **fdtabs_ready;
+	ACL_EVENT_FDTABLE **ready;
 	/* 本进程中最大套接字值 */
 	ACL_SOCKET   maxfd;
 

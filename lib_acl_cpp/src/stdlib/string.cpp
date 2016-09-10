@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include <utility>
 #include <stdarg.h>
 #include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/string.hpp"
+#endif
 
 #define ALLOC(n) acl_vstring_alloc((n))
 #define FREE(x) acl_vstring_free((x))
@@ -38,6 +40,7 @@ string::string(size_t len /* = 64 */, bool bin /* = false */)
 : use_bin_(bin)
 {
 	init(len);
+	TERM(vbf_);
 }
 
 string::string(const string& s) : use_bin_(false)
@@ -49,6 +52,13 @@ string::string(const string& s) : use_bin_(false)
 
 string::string(const char* s) : use_bin_(false)
 {
+	if (s == NULL)
+	{
+		init(128);
+		TERM(vbf_);
+		return;
+	}
+
 	size_t len = strlen(s);
 	init(len + 1);
 	MCP(vbf_, s, len);
@@ -58,9 +68,25 @@ string::string(const char* s) : use_bin_(false)
 string::string(const void* s, size_t n) : use_bin_(false)
 {
 	init(n + 1);
-	if (n > 0)
+	if (s != NULL && n > 0)
 		MCP(vbf_, (const char*) s, n);
 	TERM(vbf_);
+}
+
+string::string(ACL_FILE_HANDLE fd, size_t max, size_t n)
+{
+	if (n < 1)
+		n = 1;
+	if (fd >= 0)
+		vbf_ = acl_vstring_mmap_alloc(fd, (ssize_t) max, (ssize_t) n);
+	else
+		vbf_ = ALLOC(n);
+	list_tmp_ = NULL;
+	vector_tmp_ = NULL;
+	pair_tmp_ = NULL;
+	scan_ptr_ = NULL;
+	line_state_ = NULL;
+	line_state_offset_ = 0;
 }
 
 string::~string()
@@ -173,7 +199,9 @@ char& string::operator [](int n)
 
 string& string::operator =(const char* s)
 {
-	SCP(vbf_, s);
+	if (s != NULL)
+		SCP(vbf_, s);
+
 	return *this;
 }
 
@@ -181,11 +209,15 @@ string& string::operator =(const string& s)
 {
 	MCP(vbf_, STR(s.vbf_), LEN(s.vbf_));
 	TERM(vbf_);
+
 	return *this;
 }
 
 string& string::operator =(const string* s)
 {
+	if (s == NULL)
+		return *this;
+
 	MCP(vbf_, STR(s->vbf_), LEN(s->vbf_));
 	TERM(vbf_);
 	return *this;
@@ -303,6 +335,9 @@ string& string::operator =(unsigned char n)
 
 string& string::operator +=(const char* s)
 {
+	if (s == NULL)
+		return *this;
+
 	SCAT(vbf_, s);
 	return *this;
 }
@@ -316,6 +351,9 @@ string& string::operator +=(const string& s)
 
 string& string::operator +=(const string* s)
 {
+	if (s == NULL)
+		return *this;
+
 	MCAT(vbf_, STR(s->vbf_), LEN(s->vbf_));
 	TERM(vbf_);
 	return *this;
@@ -434,12 +472,18 @@ string& string::operator <<(const string& s)
 
 string& string::operator <<(const string* s)
 {
+	if (s == NULL )
+		return *this;
+
 	*this += s;
 	return *this;
 }
 
 string& string::operator <<(const char* s)
 {
+	if (s == NULL)
+		return *this;
+
 	*this += s;
 	return *this;
 }
@@ -627,6 +671,9 @@ size_t string::scan_move()
 
 size_t string::operator >>(string* s)
 {
+	if (s == NULL)
+		return 0;
+
 	size_t len = this->length();
 	*s = this;
 	clear();
@@ -770,6 +817,9 @@ int string::compare(const string& s) const
 
 int string::compare(const string* s) const
 {
+	if (s == NULL)
+		return 1;
+
 	size_t n = LEN(vbf_) > LEN(s->vbf_) ? LEN(s->vbf_) : LEN(vbf_);
 	int  ret;
 
@@ -781,6 +831,9 @@ int string::compare(const string* s) const
 
 int string::compare(const char* s, bool case_sensitive) const
 {
+	if (s == NULL)
+		return 1;
+
 	if (case_sensitive)
 		return compare((const void*) s, (size_t) strlen(s));		
 	else
@@ -789,6 +842,9 @@ int string::compare(const char* s, bool case_sensitive) const
 
 int string::compare(const void* ptr, size_t len) const
 {
+	if (ptr == NULL)
+		return 1;
+
 	size_t n = LEN(vbf_) > len ? len : LEN(vbf_);
 	int  ret;
 
@@ -800,6 +856,9 @@ int string::compare(const void* ptr, size_t len) const
 
 int string::ncompare(const char* s, size_t len, bool case_sensitive/* =true */) const
 {
+	if (s == NULL)
+		return 1;
+
 	if (case_sensitive)
 		return strncmp(STR(vbf_), s, len);		
 	else
@@ -808,6 +867,9 @@ int string::ncompare(const char* s, size_t len, bool case_sensitive/* =true */) 
 
 int string::rncompare(const char* s, size_t len, bool case_sensitive/* =true */) const
 {
+	if (s == NULL)
+		return 1;
+
 	if (case_sensitive)
 		return acl_strrncmp(STR(vbf_), s, len);		
 	else
@@ -919,6 +981,9 @@ int string::find(char ch) const
 
 char* string::find(const char* needle, bool case_sensitive) const
 {
+	if (needle == NULL || *needle == 0)
+		return NULL;
+
 	if (case_sensitive)
 		return acl_vstring_strstr(vbf_, needle);
 	else
@@ -927,6 +992,9 @@ char* string::find(const char* needle, bool case_sensitive) const
 
 char* string::rfind(const char* needle, bool case_sensitive) const
 {
+	if (needle == NULL || *needle == 0)
+		return NULL;
+
 	if (case_sensitive)
 		return acl_vstring_rstrstr(vbf_, needle);
 	else
@@ -949,39 +1017,59 @@ string string::right(size_t npos)
 	return string(STR(vbf_) + npos, nLeft);
 }
 
-std::list<acl::string>& string::split(const char* sep)
+std::list<acl::string>& string::split(const char* sep, bool quoted /* = false */)
 {
-	ACL_ARGV *argv = acl_argv_split(STR(vbf_), sep);
-	ACL_ITER it;
-
 	if (list_tmp_ == NULL)
 		list_tmp_ = NEW std::list<acl::string>;
 	else
 		list_tmp_->clear();
+
+	if (sep == NULL || *sep == 0)
+		return *list_tmp_;
+
+	ACL_ITER it;
+	ACL_ARGV *argv;
+
+	if (quoted)
+		argv = acl_argv_quote_split(STR(vbf_), sep);
+	else
+		argv = acl_argv_split(STR(vbf_), sep);
+
 	acl_foreach(it, argv)
 	{
 		char* ptr = (char*) it.data;
 		list_tmp_->push_back(ptr);
 	}
 	acl_argv_free(argv);
+
 	return *list_tmp_;
 }
 
-std::vector<acl::string>& string::split2(const char* sep)
+std::vector<acl::string>& string::split2(const char* sep, bool quoted /* = false */)
 {
-	ACL_ARGV *argv = acl_argv_split(STR(vbf_), sep);
-	ACL_ITER it;
-
 	if (vector_tmp_ == NULL)
 		vector_tmp_ = NEW std::vector<acl::string>;
 	else
 		vector_tmp_->clear();
+
+	if (sep == NULL || *sep == 0)
+		return *vector_tmp_;
+
+	ACL_ITER it;
+	ACL_ARGV *argv;
+
+	if (quoted)
+		argv = acl_argv_quote_split(STR(vbf_), sep);
+	else
+		argv = acl_argv_split(STR(vbf_), sep);
+
 	acl_foreach(it, argv)
 	{
 		char* ptr = (char*) it.data;
 		vector_tmp_->push_back(ptr);
 	}
 	acl_argv_free(argv);
+
 	return *vector_tmp_;
 }
 
@@ -1004,12 +1092,18 @@ std::pair<acl::string, acl::string>& string::split_nameval()
 
 string& string::copy(const char* ptr)
 {
+	if (ptr == NULL)
+		return *this;
+
 	SCP(vbf_, ptr);
 	return *this;
 }
 
 string& string::copy(const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	MCP(vbf_, (const char*) ptr, len);
 	TERM(vbf_);
 	return *this;
@@ -1017,11 +1111,17 @@ string& string::copy(const void* ptr, size_t len)
 
 string& string::memmove(const char* ptr)
 {
+	if (ptr == NULL)
+		return *this;
+
 	return memmove(ptr, strlen(ptr));
 }
 
 string& string::memmove(const char* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	acl_vstring_memmove(vbf_, ptr, len);
 	return *this;
 }
@@ -1033,17 +1133,26 @@ string& string::append(const string& s)
 
 string& string::append(const string* s)
 {
+	if (s == NULL)
+		return *this;
+
 	return append(s->c_str(), s->length());
 }
 
 string& string::append(const char* ptr)
 {
+	if (ptr == NULL)
+		return *this;
+
 	SCAT(vbf_, ptr);
 	return *this;
 }
 
 string& string::append(const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	MCAT(vbf_, (const char*) ptr, len);
 	TERM(vbf_);
 	return *this;
@@ -1051,12 +1160,18 @@ string& string::append(const void* ptr, size_t len)
 
 string& string::prepend(const char* s)
 {
+	if (s == NULL || *s == 0)
+		return *this;
+
 	acl_vstring_prepend(vbf_, s, strlen(s));
 	return *this;
 }
 
 string& string::prepend(const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	acl_vstring_prepend(vbf_, (const char*) ptr, len);
 	return *this;
 }
@@ -1064,12 +1179,18 @@ string& string::prepend(const void* ptr, size_t len)
 
 string& string::insert(size_t start, const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	acl_vstring_insert(vbf_, start, (const char*) ptr, len);
 	return *this;
 }
 
 string& string::format(const char* fmt, ...)
 {
+	if (fmt == NULL || *fmt == 0)
+		return *this;
+
 	va_list ap;
 
 	va_start(ap, fmt);
@@ -1080,12 +1201,18 @@ string& string::format(const char* fmt, ...)
 
 string& string::vformat(const char* fmt, va_list ap)
 {
+	if (fmt == NULL || *fmt == 0)
+		return *this;
+
 	acl_vstring_vsprintf(vbf_, fmt, ap);
 	return *this;
 }
 
 string& string::format_append(const char* fmt, ...)
 {
+	if (fmt == NULL || *fmt == 0)
+		return *this;
+
 	va_list ap;
 
 	va_start(ap, fmt);
@@ -1096,6 +1223,9 @@ string& string::format_append(const char* fmt, ...)
 
 string& string::vformat_append(const char* fmt, va_list ap)
 {
+	if (fmt == NULL || *fmt == 0)
+		return *this;
+
 	acl_vstring_vsprintf_append(vbf_, fmt, ap);
 	return *this;
 }
@@ -1123,6 +1253,9 @@ string& string::truncate(size_t n)
 
 string& string::strip(const char* needle, bool each /* false */)
 {
+	if (needle == NULL || *needle == 0)
+		return *this;
+
 	char* src = STR(vbf_);
 	char* ptr;
 
@@ -1366,6 +1499,9 @@ string& string::base64_encode(void)
 
 string& string::base64_encode(const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	acl_vstring_base64_encode(vbf_, (const char*) ptr, (int) len);
 	return *this;
 }
@@ -1387,6 +1523,9 @@ string& string::base64_decode(void)
 
 string& string::base64_decode(const char* s)
 {
+	if (s == NULL)
+		return *this;
+
 	if (acl_vstring_base64_decode(vbf_, s, (int) strlen(s)) == NULL)
 		RSET(vbf_);
 
@@ -1396,6 +1535,9 @@ string& string::base64_decode(const char* s)
 
 string& string::base64_decode(const void* ptr, size_t len)
 {
+	if (ptr == NULL || len == 0)
+		return *this;
+
 	if (acl_vstring_base64_decode(vbf_,
 		(const char*) ptr, (int) len) == NULL)
 	{
@@ -1407,6 +1549,9 @@ string& string::base64_decode(const void* ptr, size_t len)
 
 string& string::url_encode(const char* s, dbuf_pool* dbuf /* = NULL */)
 {
+	if (s == NULL)
+		return *this;
+
 	char *ptr = acl_url_encode(s, dbuf ? dbuf->get_dbuf() : NULL);
 
 	(*this) = ptr;
@@ -1417,6 +1562,9 @@ string& string::url_encode(const char* s, dbuf_pool* dbuf /* = NULL */)
 
 string& string::url_decode(const char* s, dbuf_pool* dbuf /* = NULL */)
 {
+	if (s == NULL)
+		return *this;
+
 	char *ptr = acl_url_decode(s, dbuf ? dbuf->get_dbuf() : NULL);
 
 	(*this) = ptr;
@@ -1427,24 +1575,36 @@ string& string::url_decode(const char* s, dbuf_pool* dbuf /* = NULL */)
 
 string& string::hex_encode(const void* s, size_t len)
 {
+	if (s == NULL || len == 0)
+		return *this;
+
 	(void) acl_hex_encode(vbf_, (const char*) s, (int) len);
 	return *this;
 }
 
 string& string::hex_decode(const char* s, size_t len)
 {
+	if (s == NULL || len == 0)
+		return *this;
+
 	(void) acl_hex_decode(vbf_, s, (int) len);
 	return *this;
 }
 
 string& string::basename(const char* path)
 {
+	if (path == NULL)
+		return *this;
+
 	(void) acl_sane_basename(vbf_, path);
 	return *this;
 }
 
 string& string::dirname(const char* path)
 {
+	if (path == NULL)
+		return *this;
+
 	(void) acl_sane_dirname(vbf_, path);
 	return *this;
 }

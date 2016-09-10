@@ -1,8 +1,10 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stream/aio_timer_callback.hpp"
-#include "aio_timer_delay_free.hpp"
 #include "acl_cpp/stream/aio_handle.hpp"
+#endif
+#include "aio_timer_delay_free.hpp"
 
 namespace acl
 {
@@ -193,6 +195,26 @@ ACL_AIO* aio_handle::get_handle() const
 aio_handle_type aio_handle::get_engine_type() const
 {
 	return engine_type_;
+}
+
+void aio_handle::set_delay_sec(int n)
+{
+	acl_aio_set_delay_sec(aio_, n);
+}
+
+void aio_handle::set_delay_usec(int n)
+{
+	acl_aio_set_delay_usec(aio_, n);
+}
+
+void aio_handle::set_check_inter(int n)
+{
+	acl_aio_set_check_inter(aio_, n);
+}
+
+void aio_handle::set_rbuf_size(int n)
+{
+	acl_aio_set_rbuf_size(aio_, n);
 }
 
 bool aio_handle::check()

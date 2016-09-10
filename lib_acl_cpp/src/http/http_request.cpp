@@ -1,9 +1,12 @@
 #include "acl_stdafx.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/util.hpp"
 #include "acl_cpp/stdlib/xml.hpp"
 #include "acl_cpp/stdlib/json.hpp"
 #include "acl_cpp/stdlib/string.hpp"
+#include "acl_cpp/stream/polarssl_conf.hpp"
+#include "acl_cpp/stream/polarssl_io.hpp"
 #include "acl_cpp/stream/socket_stream.hpp"
 #include "acl_cpp/stdlib/charset_conv.hpp"
 #include "acl_cpp/stdlib/pipe_stream.hpp"
@@ -13,6 +16,7 @@
 #include "acl_cpp/http/http_ctype.hpp"
 #include "acl_cpp/http/http_pipe.hpp"
 #include "acl_cpp/http/http_request.hpp"
+#endif
 
 namespace acl
 {
@@ -28,9 +32,9 @@ http_request::http_request(socket_stream* client,
 	int conn_timeout /* = 60 */, bool unzip /* = true */)
 {
 	// 设置解压参数
-	client_ = NEW http_client(client, client->get_vstream()->rw_timeout,
-		true, unzip);
+	client_ = NEW http_client(client, true, unzip);
 	unzip_ = unzip;
+	ssl_conf_ = NULL;
 	local_charset_[0] = 0;
 	conv_ = NULL;
 
@@ -56,6 +60,7 @@ http_request::http_request(const char* addr, int conn_timeout /* = 60 */,
 	set_timeout(conn_timeout, rw_timeout);
 
 	unzip_ = unzip;
+	ssl_conf_ = NULL;
 	local_charset_[0] = 0;
 	conv_ = NULL;
 
@@ -110,6 +115,12 @@ http_request& http_request::set_unzip(bool on)
 	return *this;
 }
 
+http_request& http_request::set_ssl(polarssl_conf* ssl_conf)
+{
+	ssl_conf_ = ssl_conf;
+	return *this;
+}
+
 bool http_request::open()
 {
 	bool reuse;
@@ -138,6 +149,18 @@ bool http_request::try_open(bool* reuse_conn)
 		return false;
 	}
 
+	if (ssl_conf_ == NULL)
+		return true;
+
+	polarssl_io* ssl = new polarssl_io(*ssl_conf_, false);
+	if (client_->get_stream().setup_hook(ssl) == ssl)
+	{
+		logger_error("open client ssl error to: %s", addr_);
+		ssl->destroy();
+		close();
+		return false;
+	}
+
 	return true;
 }
 
@@ -153,7 +176,15 @@ http_client* http_request::get_client(void) const
 
 bool http_request::write_head()
 {
-	acl_assert(client_);  // 必须保证该连接已经打开
+#if 0
+	// 必须保证该连接已经打开
+	if (client_ == NULL)
+	{
+		logger_error("connection not opened!");
+		return false;
+	}
+#endif
+
 	bool  reuse_conn;
 	http_method_t method = header_.get_method();
 
@@ -264,7 +295,10 @@ bool http_request::write_body(const void* data, size_t len)
 
 bool http_request::send_request(const void* data, size_t len)
 {
-	acl_assert(client_);  // 必须保证该连接已经打开
+	// 必须保证该连接已经打开
+	if (client_ == NULL)
+		return false;
+
 	client_->reset();  // 重置状态
 
 	// 写 HTTP 请求头
@@ -292,12 +326,21 @@ bool http_request::request(const void* data, size_t len)
 	// 构建 HTTP 请求头
 	if (data && len > 0)
 	{
-		http_method_t method = header_.get_method();
-		// 在有数据体的条件下，HTTP 请求方法必须为以下两者之一：
-		// HTTP_METHOD_POST 或 HTTP_METHOD_PUT
-		if (method != HTTP_METHOD_POST && method != HTTP_METHOD_PUT)
-			header_.set_method(HTTP_METHOD_POST);
 		header_.set_content_length(len);
+
+		// 在有数据体的条件下，重新设置 HTTP 请求方法
+		switch (header_.get_method())
+		{
+		case HTTP_METHOD_GET:
+		case HTTP_METHOD_CONNECT:
+		case HTTP_METHOD_PURGE:
+		case HTTP_METHOD_DELETE:
+		case HTTP_METHOD_HEAD:
+			header_.set_method(HTTP_METHOD_POST);
+			break;
+		default:
+			break;
+		}
 	}
 
 	while (true)
@@ -354,32 +397,27 @@ bool http_request::request(const void* data, size_t len)
 
 int http_request::http_status() const
 {
-	acl_assert(client_);
-	return client_->response_status();
+	return client_ ? client_->response_status() : -1;
 }
 
 acl_int64 http_request::body_length() const
 {
-	acl_assert(client_);
-	return client_->body_length();
+	return client_ ? client_->body_length() : -1;
 }
 
 bool http_request::keep_alive() const
 {
-	acl_assert(client_);
-	return client_->keep_alive();
+	return client_ ? client_->keep_alive() : false;
 }
 
 const char* http_request::header_value(const char* name) const
 {
-	acl_assert(client_);
-	return client_->header_value(name);
+	return client_ ? client_->header_value(name) : NULL;
 }
 
 bool http_request::body_finish() const
 {
-	acl_assert(client_);
-	return client_->body_finish();
+	return client_ ? client_->body_finish() : false;
 }
 
 void http_request::check_range()
@@ -593,11 +631,14 @@ bool http_request::get_body(string& out, const char* to_charset /* = NULL */)
 		return false;
 
 	http_pipe* hp = get_pipe(to_charset);
+	pipe_string* ps;
 	if (hp)
 	{
-		pipe_string ps(out);
-		hp->append(&ps);
+		ps = NEW pipe_string(out);
+		hp->append(ps);
 	}
+	else
+		ps = NULL;
 
 	string  buf(4096);
 	int   ret;
@@ -617,6 +658,8 @@ bool http_request::get_body(string& out, const char* to_charset /* = NULL */)
 		else
 			out.append(buf);
 	}
+
+	delete ps;
 
 	if (hp)
 	{

@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories=".\include;..\lib_acl\include;..\lib_protocol\include;..\include\sqlite;..\include\zlib;..\include\mysql;..\include;"
+				AdditionalIncludeDirectories=".\include;..\lib_acl\include;..\lib_protocol\include;..\include\sqlite;..\include\zlib;..\include\mysql;..\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;_LIB;USE_WIN_ICONV;HAS_MYSQL_DLL;HAS_ZLIB_DLL"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -970,6 +970,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\src\stdlib\sha1.cpp"
+					>
+				</File>
+				<File
 					RelativePath=".\src\stdlib\snprintf.cpp"
 					>
 				</File>
@@ -999,6 +1003,14 @@
 				</File>
 				<File
 					RelativePath=".\src\stdlib\xml.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\stdlib\xml1.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\stdlib\xml2.cpp"
 					>
 				</File>
 				<File
@@ -1684,6 +1696,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\include\acl_cpp\stdlib\sha1.hpp"
+					>
+				</File>
+				<File
 					RelativePath=".\include\acl_cpp\stdlib\snprintf.hpp"
 					>
 				</File>
@@ -1717,6 +1733,14 @@
 				</File>
 				<File
 					RelativePath=".\include\acl_cpp\stdlib\xml.hpp"
+					>
+				</File>
+				<File
+					RelativePath=".\include\acl_cpp\stdlib\xml1.hpp"
+					>
+				</File>
+				<File
+					RelativePath=".\include\acl_cpp\stdlib\xml2.hpp"
 					>
 				</File>
 				<File

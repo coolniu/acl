@@ -381,6 +381,10 @@
 				Name="stdlib"
 				>
 				<File
+					RelativePath=".\src\stdlib\acl_atomic.c"
+					>
+				</File>
+				<File
 					RelativePath=".\src\stdlib\acl_chunk_chain.c"
 					>
 				</File>
@@ -394,6 +398,10 @@
 				</File>
 				<File
 					RelativePath=".\src\stdlib\acl_getopt.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\stdlib\acl_mbox.c"
 					>
 				</File>
 				<File
@@ -580,6 +588,14 @@
 						>
 					</File>
 					<File
+						RelativePath=".\src\stdlib\common\acl_ypipe.c"
+						>
+					</File>
+					<File
+						RelativePath=".\src\stdlib\common\acl_yqueue.c"
+						>
+					</File>
+					<File
 						RelativePath=".\src\stdlib\common\avl.c"
 						>
 					</File>
@@ -652,6 +668,10 @@
 						>
 					</File>
 					<File
+						RelativePath=".\src\stdlib\sys\acl_sane_socketpair.c"
+						>
+					</File>
+					<File
 						RelativePath=".\src\stdlib\sys\acl_sys_file.c"
 						>
 					</File>
@@ -696,10 +716,6 @@
 						</File>
 						<File
 							RelativePath=".\src\stdlib\sys\unix\acl_safe_open.c"
-							>
-						</File>
-						<File
-							RelativePath=".\src\stdlib\sys\unix\acl_sane_socketpair.c"
 							>
 						</File>
 						<File
@@ -1042,6 +1058,30 @@
 				>
 				<File
 					RelativePath=".\src\xml\acl_xml.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2_parse.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml2_util.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3_parse.c"
+					>
+				</File>
+				<File
+					RelativePath=".\src\xml\acl_xml3_util.c"
 					>
 				</File>
 				<File
@@ -1738,6 +1778,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\include\stdlib\acl_atomic.h"
+					>
+				</File>
+				<File
 					RelativePath=".\include\stdlib\acl_binhash.h"
 					>
 				</File>
@@ -1878,6 +1922,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\include\stdlib\acl_mbox.h"
+					>
+				</File>
+				<File
 					RelativePath=".\include\stdlib\acl_mem_hook.h"
 					>
 				</File>
@@ -1998,6 +2046,14 @@
 					>
 				</File>
 				<File
+					RelativePath=".\include\stdlib\acl_ypipe.h"
+					>
+				</File>
+				<File
+					RelativePath=".\include\stdlib\acl_yqueue.h"
+					>
+				</File>
+				<File
 					RelativePath=".\include\stdlib\avl.h"
 					>
 				</File>
@@ -2026,10 +2082,6 @@
 					</File>
 					<File
 						RelativePath=".\include\stdlib\unix\acl_safe_open.h"
-						>
-					</File>
-					<File
-						RelativePath=".\include\stdlib\unix\acl_sane_socketpair.h"
 						>
 					</File>
 					<File
@@ -2171,6 +2223,14 @@
 				>
 				<File
 					RelativePath=".\include\xml\acl_xml.h"
+					>
+				</File>
+				<File
+					RelativePath=".\include\xml\acl_xml2.h"
+					>
+				</File>
+				<File
+					RelativePath=".\include\xml\acl_xml3.h"
 					>
 				</File>
 			</Filter>

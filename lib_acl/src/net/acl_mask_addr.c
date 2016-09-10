@@ -31,8 +31,10 @@ void acl_mask_addr(unsigned char *addr_bytes,
 	p = addr_bytes + network_bits / CHAR_BIT;
 	network_bits %= CHAR_BIT;
 
+	/* "using unsigned" is just avoiding gcc6.1 warning */
 	if (network_bits != 0)
-		*p++ &= ~0 << (CHAR_BIT - network_bits);
+		*p++ &= (unsigned char) ~0 << (unsigned)
+			(CHAR_BIT - network_bits);
 
 	while (p < addr_bytes + addr_byte_count)
 		*p++ = 0;

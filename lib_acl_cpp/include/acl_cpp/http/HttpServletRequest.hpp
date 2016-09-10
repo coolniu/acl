@@ -8,7 +8,7 @@
 
 namespace acl {
 
-class dbuf_pool;
+class dbuf_guard;
 class istream;
 class ostream;
 class socket_stream;
@@ -46,12 +46,10 @@ public:
 	 * @param body_limit {int} 针对 POST 方法，当数据体为文本参数
 	 *  类型时，此参数限制数据体的长度；当数据体为数据流或 MIME
 	 *  格式或 on 为 false，此参数无效
-	 * @param dbuf {dbuf_pool*} 非空时将做为内存分配池
 	 */
 	HttpServletRequest(HttpServletResponse& res, session& store,
 		socket_stream& stream, const char* charset = NULL,
-		bool body_parse = true, int body_limit = 102400,
-		dbuf_pool* dbuf = NULL);
+		bool body_parse = true, int body_limit = 102400);
 	~HttpServletRequest(void);
 
 	/**
@@ -93,21 +91,21 @@ public:
 	/**
 	 * 获得 HTTP GET 请求方式 URL 中的参数部分，即 ? 后面的部分
 	 * @return {const char*} 没有进行URL 解码的请求参数部分，
-	 *  返回 NULL 则表示 URL 中没有参数
+	 *  返回空串则表示 URL 中没有参数
 	 */
 	const char* getQueryString(void) const;
 
 	/**
 	 * 获得  http://test.com.cn/cgi-bin/test?name=value 中的
 	 * /cgi-bin/test 路径部分
-	 * @return {const char*} 返回空表示不存在？
+	 * @return {const char*} 返回空串表示不存在
 	 */
 	const char* getPathInfo(void) const;
 
 	/**
 	 * 获得  http://test.com.cn/cgi-bin/test?name=value 中的
 	 * /cgi-bin/test?name=value 路径部分
-	 * @return {const char*} 返回空表示不存在？
+	 * @return {const char*} 返回空串表示不存在
 	 */
 	const char* getRequestUri(void) const;
 
@@ -220,8 +218,12 @@ public:
 	 * 转换成本地要求的字符集；针对 GET 方法，则是获得
 	 * URL 中 ? 后面的参数值；针对 POST 方法，则可以获得
 	 * URL 中 ? 后面的参数值或请求体中的参数值
+	 * @param name {const char*} 参数名
+	 * @param case_sensitive {bool} 比较时针对参数名是否区分大小写
+	 * @return {const char*} 返回参数值，当参数不存在时返回 NULL
 	 */
-	const char* getParameter(const char* name) const;
+	const char* getParameter(const char* name,
+		bool case_sensitive = false) const;
 
 	/**
 	 * 当 HTTP 请求头中的 Content-Type 为
@@ -328,8 +330,8 @@ public:
 	void sprint_header(string& out, const char* prompt);
 
 private:
-	dbuf_pool* dbuf_internal_;
-	dbuf_pool* dbuf_;
+	dbuf_guard* dbuf_internal_;
+	dbuf_guard* dbuf_;
 	http_request_error_t req_error_;
 	char cookie_name_[64];
 	HttpServletResponse& res_;

@@ -39,6 +39,8 @@ struct MIME_NODE
 	/* 通用头 */
 	int   ctype;                            /**< MIME_CTYPE_XXX */
 	int   stype;                            /**< MIME_STYPE_XXX */
+	char *ctype_s;
+	char *stype_s;
 	char *charset;
 	char *header_name;
 
@@ -57,7 +59,6 @@ struct MIME_NODE
 
 	char  bound_term[3];
 	ACL_VSTRING *buffer;                    /**< headers, quoted-printable body */
-	ACL_VSTRING *body;
 	ACL_RING node;                          /**< 当前结点 */
 
 	off_t header_begin;			/**< 结点头开始位置 */
@@ -129,5 +130,6 @@ int mime_node_delete(MIME_NODE *node);
 void mime_node_add_child(MIME_NODE *parent, MIME_NODE *child);
 const char *mime_ctype_name(size_t ctype);
 const char *mime_stype_name(size_t stype);
+const char *mime_head_value(MIME_NODE *node, const char *name);
 
 #endif

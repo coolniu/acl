@@ -1,5 +1,4 @@
 #include "acl_stdafx.hpp"
-#include <string.h>
 
 #ifndef HAVE_H_ICONV
 # define HAVE_H_ICONV
@@ -11,9 +10,12 @@
 # endif
 #endif
 
+#ifndef ACL_PREPARE_COMPILE
+#include <string.h>
 #include "acl_cpp/stdlib/string.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/charset_conv.hpp"
+#endif
 
 #define SCOPY ACL_SAFE_STRNCPY
 
@@ -356,7 +358,6 @@ bool charset_conv::update(const char* in, size_t len, acl::string* out)
 		ret = __iconv(m_iconv, &pIn, &nIn, &pOut, &nOut);
 #endif
 
-
 		if (ret != (size_t) -1)
 		{
 			if ((ret = SIZE(m_pOutBuf) - nOut) > 0)
@@ -411,8 +412,9 @@ bool charset_conv::update(const char* in, size_t len, acl::string* out)
 
 			acl_assert(pIn >= STR(m_pInBuf));
 
-			// 跳过无效字节
-			(*out) += (char)(*pIn); // 直接拷贝无效字节
+			// 是否跳过无效字节?
+			if (m_addInvalid)
+				(*out) += (char)(*pIn); // 直接拷贝无效字节
 			nIn--;
 			pIn++;
 			if (nIn > 0)

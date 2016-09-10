@@ -48,6 +48,19 @@ public:
 	 * @param n {size_t} s 缓冲区数据长度
 	 */
 	string(const void* s, size_t n);
+
+#if defined(_WIN32) || defined(_WIN64)
+	/**
+	 * 采用内存映射文件方式构造对象
+	 * @param fd {int} 文件句柄
+	 * @param max {size_t} 所映射的最大空间大小
+	 * @param n {size_t} 初始化大小
+	 */
+	string(void* fd, size_t max, size_t n);
+#else
+	string(int fd, size_t max, size_t n);
+#endif
+
 	virtual ~string(void);
 
 	/**
@@ -811,18 +824,22 @@ public:
 	/**
 	 * 将当前对象存储的字符串进行分割
 	 * @param sep {const char*} 进行分割时的分割标记
+	 * @param quoted {bool} 当为 true 时，则对于由单/双引号引起来的
+	 *  字符串内容，不做分割，但此时要求 sep 中不得存在单/双号
 	 * @return {std::list<string>&} 返回 list 格式的分割结果，返回的结果
 	 *  不需要释放，其引用了当前对象的一个内部指针
 	 */
-	std::list<string>& split(const char* sep);
+	std::list<string>& split(const char* sep, bool quoted = false);
 
 	/**
 	 * 将当前对象存储的字符串进行分割
 	 * @param sep {const char*} 进行分割时的分割标记
+	 * @param quoted {bool} 当为 true 时，则对于由单/双引号引起来的
+	 *  字符串内容，不做分割，但此时要求 sep 中不得存在单/双号
 	 * @return {std::vector<string>&} 返回 vector 格式的分割结果，返回的
 	 *  结果不需要释放，其引用了当前对象的一个内部指针
 	 */
-	std::vector<string>& split2(const char* sep);
+	std::vector<string>& split2(const char* sep, bool quoted = false);
 
 	/**
 	 * 以 '=' 为分隔符将当前对象存储的字符串分割成 name/value 对，分割时会

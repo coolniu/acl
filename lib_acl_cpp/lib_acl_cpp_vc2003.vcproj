@@ -406,6 +406,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 					RelativePath=".\src\stdlib\scan_dir.cpp">
 				</File>
 				<File
+					RelativePath=".\src\stdlib\sha1.cpp">
+				</File>
+				<File
 					RelativePath=".\src\stdlib\snprintf.cpp">
 				</File>
 				<File
@@ -428,6 +431,12 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				</File>
 				<File
 					RelativePath=".\src\stdlib\xml.cpp">
+				</File>
+				<File
+					RelativePath=".\src\stdlib\xml1.cpp">
+				</File>
+				<File
+					RelativePath=".\src\stdlib\xml2.cpp">
 				</File>
 				<File
 					RelativePath=".\src\stdlib\zlib_stream.cpp">
@@ -1045,6 +1054,9 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 					RelativePath=".\include\acl_cpp\stdlib\singleton.hpp">
 				</File>
 				<File
+					RelativePath=".\include\acl_cpp\stdlib\sha1.hpp">
+				</File>
+				<File
 					RelativePath=".\include\acl_cpp\stdlib\snprintf.hpp">
 				</File>
 				<File
@@ -1070,6 +1082,12 @@ copy $(TargetName).pdb ..\dist\lib\win32\$(TargetName).pdb /Y
 				</File>
 				<File
 					RelativePath=".\include\acl_cpp\stdlib\xml.hpp">
+				</File>
+				<File
+					RelativePath=".\include\acl_cpp\stdlib\xml1.hpp">
+				</File>
+				<File
+					RelativePath=".\include\acl_cpp\stdlib\xml2.hpp">
 				</File>
 				<File
 					RelativePath=".\include\acl_cpp\stdlib\zlib_stream.hpp">

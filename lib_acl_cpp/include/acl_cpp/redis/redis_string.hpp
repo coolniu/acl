@@ -21,7 +21,7 @@ public:
 	/**
 	 * see redis_command::redis_command()
 	 */
-	redis_string();
+	redis_string(void);
 
 	/**
 	 * see redis_command::redis_command(redis_client*)
@@ -29,10 +29,10 @@ public:
 	redis_string(redis_client* conn);
 
 	/**
-	 * see redis_command::redis_command(redis_client_cluster*£¬ size_t)
+	 * see redis_command::redis_command(redis_client_cluster*, size_t)
 	 */
-	redis_string(redis_client_cluster* cluster, size_t max_conns);
-	virtual ~redis_string();
+	redis_string(redis_client_cluster* cluster, size_t max_conns = 0);
+	virtual ~redis_string(void);
 
 	/////////////////////////////////////////////////////////////////////
 

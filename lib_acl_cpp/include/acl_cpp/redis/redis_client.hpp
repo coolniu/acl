@@ -35,7 +35,7 @@ public:
 	 */
 	redis_client(const char* addr, int conn_timeout = 60,
 		int rw_timeout = 30, bool retry = true);
-	~redis_client();
+	~redis_client(void);
 
 	/**
 	 * 调用本函数设置连接 redis 服务的连接密码
@@ -43,6 +43,15 @@ public:
 	 * @return {redis_client&}
 	 */
 	void set_password(const char* pass);
+
+	/**
+	 * 获得当前连接的服务器地址，即由 redis_client 构造时传入的地址
+	 * @return {const char*}
+	 */
+	const char* get_addr(void) const
+	{
+		return addr_;
+	}
 
 	/**
 	 * 判断该网络连接对象是否已经关闭

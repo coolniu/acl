@@ -3,12 +3,9 @@
  *
  * \brief  Multi-precision integer library
  *
- *  Copyright (C) 2006-2013, Brainspark B.V.
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
  *
- *  This file is part of PolarSSL (http://www.polarssl.org)
- *  Lead Maintainer: Paul Bakker <polarssl_maintainer at polarssl.org>
- *
- *  All rights reserved.
+ *  This file is part of mbed TLS (https://polarssl.org)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,7 +29,7 @@
 
 #include "config.h"
 
-#if defined(_MSC_VER) || defined(MINGW)
+#ifdef _MSC_VER
 #include <basetsd.h>
 #if (_MSC_VER <= 1200)
 typedef   signed short  int16_t;
@@ -136,9 +133,10 @@ typedef uint32_t t_udbl;
           defined(__ppc64__) || defined(__powerpc64__) || \
           defined(__ia64__)  || defined(__alpha__)     || \
           (defined(__sparc__) && defined(__arch64__))  || \
-          defined(__s390x__) ) )
+          defined(__s390x__) || defined(__mips64) ) )
        typedef  int64_t t_sint;
        typedef uint64_t t_uint;
+       /* mbedtls_t_udbl defined as 128-bit unsigned int */
        typedef unsigned int t_udbl __attribute__((mode(TI)));
        #define POLARSSL_HAVE_UDBL
     #else

@@ -291,20 +291,30 @@ void acl_app_conf_load(const char *pathname)
 	__app_conf_file = acl_mystrdup(pathname);
 }
 
+void acl_app_conf_unload(void)
+{
+	if (__app_cfg) {
+		acl_xinetd_cfg_free(__app_cfg);
+		__app_cfg = NULL;
+	}
+
+	if (__app_conf_file) {
+		acl_myfree(__app_conf_file);
+		__app_conf_file = NULL;
+	}
+}
+
 void  acl_get_app_conf_int_table(ACL_CONFIG_INT_TABLE *table)
 {
-	const char *myname = "acl_get_app_conf_int_table";
 	int   i, n, ret;
 	char *name, *value;
 
-	if (__app_cfg == NULL)
-		acl_msg_fatal("%s(%d), %s: app_cfg null, app_conf_load first",
-			__FILE__, __LINE__, myname);
-
 	if (table == NULL)
 		return;
-
 	__init_conf_int_vars(table);
+
+	if (__app_cfg == NULL)
+		return;
 
 	n = acl_xinetd_cfg_size(__app_cfg);
 
@@ -317,18 +327,15 @@ void  acl_get_app_conf_int_table(ACL_CONFIG_INT_TABLE *table)
 
 void  acl_get_app_conf_int64_table(ACL_CONFIG_INT64_TABLE *table)
 {
-	const char *myname = "acl_get_app_conf_int64_table";
 	int   i, n, ret;
 	char *name, *value;
 
-	if (__app_cfg == NULL)
-		acl_msg_fatal("%s(%d), %s: app_cfg null, app_conf_load first",
-			__FILE__, __LINE__, myname);
-
 	if (table == NULL)
 		return;
-
 	__init_conf_int64_vars(table);
+
+	if (__app_cfg == NULL)
+		return;
 
 	n = acl_xinetd_cfg_size(__app_cfg);
 
@@ -341,18 +348,15 @@ void  acl_get_app_conf_int64_table(ACL_CONFIG_INT64_TABLE *table)
 
 void  acl_get_app_conf_str_table(ACL_CONFIG_STR_TABLE *table)
 {
-	const char *myname = "acl_get_app_conf_str_table";
 	int   i, n, ret;
 	char *name, *value;
 
-	if (__app_cfg == NULL)
-		acl_msg_fatal("%s(%d), %s: app_cfg null, app_conf_load first",
-			__FILE__, __LINE__, myname);
-
 	if (table == NULL)
 		return;
-
 	__init_conf_str_vars(table);
+
+	if (__app_cfg == NULL)
+		return;
 
 	n = acl_xinetd_cfg_size(__app_cfg);
 
@@ -363,20 +367,30 @@ void  acl_get_app_conf_str_table(ACL_CONFIG_STR_TABLE *table)
 	}
 }
 
-void  acl_get_app_conf_bool_table(ACL_CONFIG_BOOL_TABLE *table)
+void  acl_free_app_conf_str_table(ACL_CONFIG_STR_TABLE *table)
 {
-	const char *myname = "acl_get_app_conf_bool_table";
-	int   i, n, ret;
-	char *name, *value;
-
-	if (__app_cfg == NULL)
-		acl_msg_fatal("%s(%d), %s: app_cfg null, app_conf_load first",
-			__FILE__, __LINE__, myname);
+	int   i;
 
 	if (table == NULL)
 		return;
 
+	for (i = 0; table[i].name != 0; i++) {
+		if (*(table[i].target) != 0)
+			acl_myfree(*(table[i].target));
+	}
+}
+
+void  acl_get_app_conf_bool_table(ACL_CONFIG_BOOL_TABLE *table)
+{
+	int   i, n, ret;
+	char *name, *value;
+
+	if (table == NULL)
+		return;
 	__init_conf_bool_vars(table);
+
+	if (__app_cfg == NULL)
+		return;
 
 	n = acl_xinetd_cfg_size(__app_cfg);
 

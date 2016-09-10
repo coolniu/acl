@@ -2,10 +2,10 @@ SHELL = /bin/sh
 #CC      = gcc
 #CC      = g++
 CC	= ${ENV_CC}
-AR      = ar
+AR      = ${ENV_AR}
 ARFL    = rv
 #ARFL    = cru
-RANLIB  = ranlib
+RANLIB  = ${ENV_RANLIB}
 
 FLAGS   = ${ENV_FLAGS}
 
@@ -24,9 +24,13 @@ CFLAGS = -c -g -W \
 -Wmissing-prototypes \
 -D_REENTRANT \
 -D_USE_FAST_MACRO \
+-DACL_WRITEABLE_CHECK \
 -Wno-long-long \
 -Wuninitialized \
 -D_POSIX_PTHREAD_SEMANTICS \
+-DACL_PREPARE_COMPILE \
+-Winvalid-pch
+#-DUSE_EPOLL \
 #-Wno-invalid-source-encoding \
 #-Wno-extended-offsetof
 #-Wcast-align
@@ -39,9 +43,19 @@ SYSLIB = -lpthread
 CHECKSYSRES = @echo "Unknow system type!";exit 1
 UNIXNAME = $(shell uname -sm)
 UNIXTYPE = LINUX
+OSTYPE = $(shell uname -p)
+RPATH =
 
 ifeq ($(CC),)
         CC = gcc
+endif
+
+ifeq ($(AR),)
+	AR = ar
+endif
+
+ifeq ($(RANLIB),)
+	RANLIB = ranlib
 endif
 
 ifeq ($(findstring gcc, $(CC)), gcc)
@@ -63,6 +77,7 @@ endif
 ifeq ($(findstring FreeBSD, $(UNIXNAME)), FreeBSD)
 	CFLAGS += -DFREEBSD -fPIC -Werror
 	UNIXTYPE = FREEBSD
+	RPATH = freebsd
 endif
 
 # For Darwin
@@ -70,12 +85,21 @@ ifeq ($(findstring Darwin, $(UNIXNAME)), Darwin)
 	CFLAGS += -DMACOSX -Wno-invalid-source-encoding \
 		  -Wno-extended-offsetof -fPIC -Werror
 	UNIXTYPE = MACOSX
+	RPATH = macos
 endif
 
 # For Linux
 ifeq ($(findstring Linux, $(UNIXNAME)), Linux)
 	CFLAGS += -DLINUX2 -fPIC -Werror
 	UNIXTYPE = LINUX
+	ifeq ($(findstring i686, $(OSTYPE)), i686)
+		CFLAGS += -march=i686
+		RPATH = linux32
+	endif
+	ifeq ($(findstring x86_64, $(OSTYPE)), x86_64)
+#		CFLAGS += -m64
+		RPATH = linux64
+	endif
 endif
 
 ifeq ($(findstring HAS_TRACE, $(FLAGS)), HAS_TRACE)
@@ -95,6 +119,7 @@ ifeq ($(findstring MINGW, $(UNIXNAME)), MINGW)
 	CFLAGS += -DLINUX2 -DMINGW
 	UNIXTYPE = LINUX
 	SYSLIB = -lpthread-2
+	RPATH = mingw
 endif
 
 # For SunOS
@@ -107,12 +132,14 @@ ifeq ($(findstring SunOS, $(UNIXNAME)), SunOS)
 	endif
 	CFLAGS += -DSUNOS5 -fPIC -Werror
 	UNIXTYPE = SUNOS5
+	RPATH = sunos5_x86
 endif
 
 # For HP-UX
 ifeq ($(findstring HP-UX, $(UNIXNAME)), HP-UX)
 	CFLAGS += -DHP_UX -DHPUX11 -fPIC -Werror
 	UNIXTYPE = HPUX
+	RPATH = hpux
 endif
 
 #CCARGS =
@@ -180,12 +207,6 @@ XML_SRC      = $(wildcard $(SRC_PATH_SRC)/xml/*.c)
 JSON_SRC      = $(wildcard $(SRC_PATH_SRC)/json/*.c)
 UTEST_SRC    = $(wildcard $(SRC_PATH_SRC)/unit_test/*.c)
 #EXP_SRC      = $(wildcard $(SRC_PATH_SRC)/experiment/avl/*.c)
-
-SOURCES_SRC  = $(INIT_SRC) $(STDLIB_SRC) $(NET_SRC) \
-		$(ENGINE_SRC) $(IOCTL_SRC) $(AIO_SRC) \
-		$(MSG_SRC) $(THREAD_SRC) $(SVR_SRC) \
-		$(DB_SRC) $(CODE_SRC) $(MASTER_SRC) \
-		$(PROCTL_SRC) $(XML_SRC) $(UTEST_SRC)
 #$(EXP_SRC)
 
 ###########################################################
@@ -259,7 +280,7 @@ endif
 clean: clean_lib clean_master
 rebuild: clean all
 
-LIB_GCH = StdAfx.h.gch
+PCH = StdAfx.h.gch
 
 ###########################################################
 
@@ -307,8 +328,9 @@ shared: depends $(OBJS_DST)
 
 depends: $(OBJS_DEF)
 
-lib_gch: include/StdAfx.h
-	$(CC) -o include/$(LIB_GCH) -x c-header $(CFLAGS) include/StdAfx.h
+pch: StdAfx.h
+	rm -f $(PCH)
+	$(CC) -o $(PCH) -x c-header $(CFLAGS) StdAfx.h
 
 ###########################################################
 
@@ -497,7 +519,7 @@ clean_lib:
 	rm -f $(LIB_PATH_DST)/lib_acl.so
 	rm -f $(OBJS_DST)
 	rm -f $(OBJS_DEF)
-	rm -f include/$(LIB_GCH)
+	rm -f $(PCH)
 
 ###########################################################
 
@@ -518,6 +540,7 @@ acl_master: static $(MASTERD_OBJ)
 		$(CC) -o $(MASTER_OBJ_PATH)/$(MASTER) $(MASTERD_OBJ) \
 			$(LIB_PATH_DST)/$(LIB_NAME) $(SYSLIB); \
 	fi
+	cp $(MASTER_OBJ_PATH)/$(MASTER) ../dist/master/libexec/$(RPATH)/
 	@echo 'create acl_master ok!'
 
 $(MASTER_OBJ_PATH)/%.o: $(SRC_PATH_SRC)/master/daemon/%.c

@@ -17,7 +17,7 @@ public:
 	/**
 	 * see redis_command::redis_command()
 	 */
-	redis_pubsub();
+	redis_pubsub(void);
 
 	/**
 	 * see redis_command::redis_command(redis_client*)
@@ -25,11 +25,11 @@ public:
 	redis_pubsub(redis_client* conn);
 
 	/**
-	 * see redis_command::redis_command(redis_client_cluster*£¬ size_t)
+	 * see redis_command::redis_command(redis_client_cluster*, size_t)
 	 */
-	redis_pubsub(redis_client_cluster* cluster, size_t max_conns);
+	redis_pubsub(redis_client_cluster* cluster, size_t max_conns = 0);
 
-	virtual ~redis_pubsub();
+	virtual ~redis_pubsub(void);
 
 	/////////////////////////////////////////////////////////////////////
 

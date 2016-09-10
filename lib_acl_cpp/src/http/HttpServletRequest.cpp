@@ -1,5 +1,6 @@
 #include "acl_stdafx.hpp"
-#include "acl_cpp/stdlib//dbuf_pool.hpp"
+#ifndef ACL_PREPARE_COMPILE
+#include "acl_cpp/stdlib/dbuf_pool.hpp"
 #include "acl_cpp/stdlib/snprintf.hpp"
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/string.hpp"
@@ -8,6 +9,7 @@
 #include "acl_cpp/stream/socket_stream.hpp"
 #include "acl_cpp/stdlib/charset_conv.hpp"
 #include "acl_cpp/stdlib/xml.hpp"
+#include "acl_cpp/stdlib/xml1.hpp"
 #include "acl_cpp/stdlib/json.hpp"
 #include "acl_cpp/http/http_header.hpp"
 #include "acl_cpp/http/HttpCookie.hpp"
@@ -16,6 +18,7 @@
 #include "acl_cpp/http/HttpSession.hpp"
 #include "acl_cpp/http/HttpServletResponse.hpp"
 #include "acl_cpp/http/HttpServletRequest.hpp"
+#endif
 
 #define SKIP_SPACE(x) { while (*x == ' ' || *x == '\t') x++; }
 
@@ -27,7 +30,7 @@ namespace acl
 HttpServletRequest::HttpServletRequest(HttpServletResponse& res,
 	session& store, socket_stream& stream,
 	const char* charset /* = NULL */, bool body_parse /* = true */,
-	int body_limit /* = 102400 */, dbuf_pool* dbuf /* = NULL */)
+	int body_limit /* = 102400 */)
 : req_error_(HTTP_REQ_OK)
 , res_(res)
 , store_(store)
@@ -44,16 +47,8 @@ HttpServletRequest::HttpServletRequest(HttpServletResponse& res,
 , xml_(NULL)
 , readHeaderCalled_(false)
 {
-	if (dbuf != NULL)
-	{
-		dbuf_ = dbuf;
-		dbuf_internal_ = NULL;
-	}
-	else
-	{
-		dbuf_internal_ = new dbuf_pool;
-		dbuf_ = dbuf_internal_;
-	}
+	dbuf_internal_ = new dbuf_guard;
+	dbuf_ = dbuf_internal_;
 
 	COPY(cookie_name_, "ACL_SESSION_ID");
 	ACL_VSTREAM* in = stream.get_vstream();
@@ -72,23 +67,9 @@ HttpServletRequest::HttpServletRequest(HttpServletResponse& res,
 
 HttpServletRequest::~HttpServletRequest(void)
 {
-	std::vector<HttpCookie*>::iterator it = cookies_.begin();
-	for (; it != cookies_.end(); ++it)
-		(*it)->~HttpCookie();
-
-	if (http_session_)
-		http_session_->~HttpSession();
 	if (client_)
 		client_->~http_client();
-	if (mime_)
-		mime_->~http_mime();
-	if (json_)
-		json_->~json();
-	if (xml_)
-		xml_->~xml();
-
-	if (dbuf_internal_)
-		dbuf_internal_->destroy();
+	delete dbuf_internal_;
 }
 
 http_method_t HttpServletRequest::getMethod(string* method_s /* = NULL */) const
@@ -120,17 +101,15 @@ void HttpServletRequest::add_cookie(char* data)
 	char* end = ptr + strlen(ptr) - 1;
 	while (end > ptr && (*end == ' ' || *end == '\t'))
 		*end-- = 0;
-	HttpCookie* cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-		HttpCookie(data, ptr, dbuf_);
-	cookies_.push_back(cookie);
+	setCookie(data, ptr);
 }
 
 void HttpServletRequest::setCookie(const char* name, const char* value)
 {
 	if (name == NULL || *name == 0 || value == NULL)
 		return;
-	HttpCookie* cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-		HttpCookie(name, value, dbuf_);
+	HttpCookie* cookie = dbuf_->create<HttpCookie, const char*,
+		const char*, dbuf_guard*> (name, value, dbuf_);
 	cookies_.push_back(cookie);
 }
 
@@ -166,23 +145,21 @@ const std::vector<HttpCookie*>& HttpServletRequest::getCookies(void) const
 	if (req->cookies_table == NULL)
 		return cookies_;
 
-	const char* name, *value;
-	HttpCookie* cookie;
 	ACL_HTABLE_ITER iter;
 
 	// 遍历 HTTP  请求头中的 cookie 项
 	acl_htable_foreach(iter, req->cookies_table)
 	{
-		name = acl_htable_iter_key(iter);
-		value = (char*) acl_htable_iter_value(iter);
+		const char* name = acl_htable_iter_key(iter);
+		const char* value = (char*) acl_htable_iter_value(iter);
 		if (name == NULL || *name == 0
 			|| value == NULL || *value == 0)
 		{
 			continue;
 		}
 		// 创建 cookie 对象并将之加入数组中
-		cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-			HttpCookie(name, value, dbuf_);
+		HttpCookie* cookie = dbuf_->create<HttpCookie, const char*,
+			const char*, dbuf_guard*>(name, value, dbuf_);
 		const_cast<HttpServletRequest*>
 			(this)->cookies_.push_back(cookie);
 	}
@@ -219,8 +196,9 @@ const char* HttpServletRequest::getQueryString(void) const
 	if (cgi_mode_)
 		return acl_getenv("QUERY_STRING");
 	if (client_ == NULL)
-		return NULL;
-	return client_->request_params();
+		return "";
+	const char* ptr = client_->request_params();
+	return ptr ? ptr : "";
 }
 
 const char* HttpServletRequest::getPathInfo(void) const
@@ -231,11 +209,12 @@ const char* HttpServletRequest::getPathInfo(void) const
 		if (ptr != NULL)
 			return ptr;
 		ptr = acl_getenv("PATH_INFO");
-		return ptr;
+		return ptr ? ptr : "";
 	}
 	if (client_ == NULL)
-		return NULL;
-	return client_->request_path();
+		return "";
+	const char* ptr = client_->request_path();
+	return ptr ? ptr : "";
 }
 
 const char* HttpServletRequest::getRequestUri(void) const
@@ -243,9 +222,12 @@ const char* HttpServletRequest::getRequestUri(void) const
 	if (cgi_mode_)
 		return acl_getenv("REQUEST_URI");
 	if (client_ == NULL)
-		return NULL;
+		return "";
 	else
-		return client_->request_url();
+	{
+		const char* ptr = client_->request_url();
+		return ptr ? ptr : "";
+	}
 }
 
 HttpSession& HttpServletRequest::getSession(bool create /* = true */,
@@ -254,8 +236,7 @@ HttpSession& HttpServletRequest::getSession(bool create /* = true */,
 	if (http_session_ != NULL)
 		return *http_session_;
 
-	http_session_ = new (dbuf_->dbuf_alloc(sizeof(HttpSession)))
-		HttpSession(store_);
+	http_session_ = dbuf_->create<HttpSession, session&>(store_);
 	const char* sid;
 
 	if ((sid = getCookieValue(cookie_name_)) != NULL)
@@ -265,8 +246,8 @@ HttpSession& HttpServletRequest::getSession(bool create /* = true */,
 		// 获得唯一 ID 标识符
 		sid = store_.get_sid();
 		// 生成 cookie 对象，并分别向请求对象和响应对象添加 cookie
-		HttpCookie* cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-			HttpCookie(cookie_name_, sid, dbuf_);
+		HttpCookie* cookie = dbuf_->create<HttpCookie, const char*,
+			const char*, dbuf_guard*>(cookie_name_, sid, dbuf_);
 		res_.addCookie(cookie);
 		setCookie(cookie_name_, sid);
 	}
@@ -274,8 +255,8 @@ HttpSession& HttpServletRequest::getSession(bool create /* = true */,
 	{
 		store_.set_sid(sid_in);
 		// 生成 cookie 对象，并分别向请求对象和响应对象添加 cookie
-		HttpCookie* cookie = new (dbuf_->dbuf_alloc(sizeof(HttpCookie)))
-			HttpCookie(cookie_name_, sid_in, dbuf_);
+		HttpCookie* cookie = dbuf_->create<HttpCookie, const char*,
+			const char*, dbuf_guard*>(cookie_name_, sid_in, dbuf_);
 		res_.addCookie(cookie);
 		setCookie(cookie_name_, sid_in);
 	}
@@ -428,13 +409,25 @@ unsigned short HttpServletRequest::getRemotePort(void) const
 	return atoi(port);
 }
 
-const char* HttpServletRequest::getParameter(const char* name) const
+const char* HttpServletRequest::getParameter(const char* name,
+	bool case_sensitive /* = false */) const
 {
 	std::vector<HTTP_PARAM*>::const_iterator cit = params_.begin();
-	for (; cit != params_.end(); ++cit)
+	if (case_sensitive)
 	{
-		if (strcmp((*cit)->name, name) == 0)
-			return (*cit)->value;
+		for (; cit != params_.end(); ++cit)
+		{
+			if (strcmp((*cit)->name, name) == 0)
+				return (*cit)->value;
+		}
+	}
+	else
+	{
+		for (; cit != params_.end(); ++cit)
+		{
+			if (strcasecmp((*cit)->name, name) == 0)
+				return (*cit)->value;
+		}
 	}
 
 	// 如果是 MIME 格式，则尝试从 mime_ 对象中查询参数
@@ -554,8 +547,7 @@ bool HttpServletRequest::readHeader(string* method_s)
 	else
 	{
 		client_ = new (dbuf_->dbuf_alloc(sizeof(http_client)))
-			http_client(&stream_, rw_timeout_);
-
+			http_client(&stream_, false, true);
 		if (client_->read_head() == false)
 		{
 			req_error_ = HTTP_REQ_ERR_IO;
@@ -637,8 +629,8 @@ bool HttpServletRequest::readHeader(string* method_s)
 		else
 		{
 			request_type_ = HTTP_REQUEST_MULTIPART_FORM;
-			mime_ = new (dbuf_->dbuf_alloc(sizeof(http_mime)))
-				http_mime(bound, localCharset_);
+			mime_ = dbuf_->create<http_mime, const char*,
+				const char*>(bound, localCharset_);
 		}
 
 		return true;
@@ -676,12 +668,17 @@ bool HttpServletRequest::readHeader(string* method_s)
 
 		return ret == -1 ? false : true;
 	}
+	if (!EQ(ctype, "text"))
+	{
+		request_type_ = HTTP_REQUEST_OTHER;
+		return true;
+	}
 
 	// 当数据类型为 text/json 格式时：
-	if (EQ(ctype, "text") && EQ(stype, "json"))
+	else if (EQ(stype, "json"))
 	{
 		request_type_ = HTTP_REQUEST_TEXT_JSON;
-		json_ = new (dbuf_->dbuf_alloc(sizeof(json))) json();
+		json_ = dbuf_->create<json>();
 		ssize_t dlen = (ssize_t) len, n;
 		char  buf[8192];
 		istream& in = getInputStream();
@@ -701,10 +698,10 @@ bool HttpServletRequest::readHeader(string* method_s)
 	}
 
 	// 当数据类型为 text/xml 格式时：
-	if (EQ(ctype, "text") && EQ(stype, "xml"))
+	else if (EQ(stype, "xml"))
 	{
 		request_type_ = HTTP_REQUEST_TEXT_XML;
-		xml_ = new (dbuf_->dbuf_alloc(sizeof(xml))) xml();
+		xml_ = dbuf_->create<xml1>();
 		ssize_t dlen = (ssize_t) len, n;
 		char  buf[8192];
 		istream& in = getInputStream();
@@ -722,9 +719,11 @@ bool HttpServletRequest::readHeader(string* method_s)
 		}
 		return true;
 	}
-
-	request_type_ = HTTP_REQUEST_OTHER;
-	return true;
+	else
+	{
+		request_type_ = HTTP_REQUEST_OTHER;
+		return true;
+	}
 }
 
 const char* HttpServletRequest::getRequestReferer(void) const

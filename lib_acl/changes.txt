@@ -1,6 +1,262 @@
 修改历史列表：
 
+562) 2016.9.7
+562.1) bugfix: acl_vstream.c 中 acl_vstream_gets/acl_vstream_gets_nonl
+/acl_vstream_readtags/acl_vstream_gets_peek/acl_vstream_gets_nonl_peek
+应该在函数入口处先清除 ACL_VSTREAM_FLAG_TAGYES 标志位，否则在多次读行
+过程中第一次置 ACL_VSTREAM_FLAG_TAGYES 标志位后有可能会被后面的读行复用
+
+561) 2016.9.1
+561.1) bugfix: acl_urlcode.c 中的解码字典 dec_tab 有误
+
 ------------------------------------------------------------------------
+560) 2016.8.23
+560.1) bugfix: acl_json_parse.c 中，在解析 JSON 过程中需要设置叶节点标志
+
+559) 2016.8.15
+559.1) bugfix: events.c 中的函数 event_thr_prepare/event_prepare 中，如果当
+ACL_VSTREAM_BFRD_CNT 及 read_ready 两个条件同时满足时，ACL_VSTREAM_BFRD_CNT
+满足条件如果放置在 read_ready 前面，会造成 read_ready 被提醒清除，因此，需要
+把 read_ready 条件放置在前面
+559.2) performance: events_epoll_thr.c 的 event_enable_read 函数中，通过设置
+/清除标志位 EVENT_FDTABLE_FLAG_FIRE 来达到减少 epoll_ctl 的调用次数，从而提高
+事件处理性能
+
+558) 2016.8.13
+558.1) bugfix: acl_vstream.c 中的 acl_vstream_writevn 函数数据指针偏移有问题，
+导致写入的数据量计数错误
+
+557) 2016.8.11
+557.1) bugfix: events_epoll_thr.c 中的 event_enable_read 函数里，解锁调用过程
+THREAD_UNLOCK 需要 epoll_ctl 调用之后，以免主线程和子线程同时操作同一对象
+557.2) compile: 需要将 acl_ypipe/acl_yqueue 添加至 vc2015 的工程中
+
+556) 2016.7.29
+556.1) feature: json 解析器支持 double 数据元素
+
+555) 2016.7.20
+555.1) compile: __sync_val_compare_and_swap 在 Linux 32 位系统下编译时需要
+加编译选项 -march=i686
+
+554) 2016.7.14
+554.1) bugfix: events_kernel.c 中的 stream_on_close 当 fdp == NULL 时直接返回
+
+553) 2016.7.10
+553.1) compile: 消除了 gcc6.1 的几处编译警告
+
+552) 2016.6.26
+552.1) feature: 增加 acl_mbox.c 用于线程之间的单向通信，内部使用了无锁队列方式
+效率更高 -- by niukey@qq.com
+
+551) 2016.6.21
+551.1) safety: acl_vstream.c->acl_vstream_fdopen 中的 rw_timeout > 0 时，应该
+再通过 acl_getsocktype 判断一下是否是需要设置非阻塞模式
+
+550) 2016.5.21
+550.1) bugfix: acl_sys_file.c 中的函数 acl_file_open 当以 O_APPEND 方式打开文件时，
+文件指针没有指向文件尾部
+
+549) 2016.5.12
+549.1) feature: 增加原子操作 acl_atomic.c, 无锁队列 acl_yqueue.c, acl_ypipe.c
+--- by niukey@qq.com
+
+548) 2016.5.9
+548.1) 将几个 socket IO 的 hook 函数由 acl_sys_socket.c 移至 acl_vstream.c 中
+
+547) 2016.5.8
+547.1) feature: acl_sys_socket.c 中的 SOCKET IO 过程允许被 HOOK，这样
+acl_vstream.c 中的 acl_vstream_fdopen 在创建 SOCKET 流对象时允许使用被 HOOK 的函数
+
+546) 2016.5.5
+546.1) safety: acl_xml_parse.c/acl_xml2_parse.c 当输入为 NULL 时返回 ""
+546.2) feature: 在 acl_vstream.c 的 acl_vstream_fdopen 时针对带有读写超时
+的 socket 的设置为非阻塞模式，这样代码逻辑更为清晰
+546.3) feature: acl_read_wait.c 中的读超时重新使用 epoll 来判断，为防止 epoll
+句柄被异外关闭，内部增加了重新打开 epoll 句柄的功能
+
+545) 2016.5.4
+545.1) bugfix: acl_sys_socket.c 中函数 acl_socket_write 修改了写超时的问题
+
+544) 2016.4.20
+544.1) feature: acl_threads_server.c 在 alone 模式下运行时，释放全局分配的
+动态对象，以便于用户使用 valgrind 查找内存问题
+
+------------------------------------------------------------------------
+543) 2016.4.16
+543.1) bugfix: acl_xml_util.c->acl_xml_node_set_text_stream->acl_vstream_fseek
+及 acl_xml2_util.c->acl_xml2_node_set_text_stream->acl_vstream_fseek 中的第二、
+第三个顺序相反
+543.2) compile: 消除了 VC2012 使用 x64 方式编译时的一些编译警告
+
+542) 2016.4.14
+542.1) feature: acl_argv_split.c 新增字符串分隔函数 acl_argv_quote_split 允许
+在对字符串进行分隔时，不破坏被单引号/双引号引用的字符串
+
+541) 2016.3.29
+541.1) bugfix: acl_vstream.c 中针对 stdin, stdout, stderr 需要做特殊处理
+
+540) 2016.3.22
+540.1) bugfix: acl_vstring.c 中没有针对 fd 进行初始化，这样当释放 ACL_VSTRING
+对象时，会误判该对象创建在 mmap 上，从而会导致内存泄露
+
+539) 2016.3.18
+539.1) bugfix: acl_threads_server.c 中的函数 dispatch_receive 是通过调用
+acl_read_fd 直接从套接字中读取数据的，此时应该将 conn->read_ready 标志位清0，
+否则会再次引发读操作，同时将该套接字设为非阻塞模式，以免阻塞主线程
+
+538) 2016.3.8
+538.1) bugfix: acl_vstream_net.c 中的函数 udp_read 应该设置 read_ready = 0，
+否则当该 UDP 对象置入 event 事件循环时，会造成无用的事件触发
+
+537) 2016.3.3
+537.1) compile: acl_env.c 中去掉了变量 _environ
+537.2) compile: acl_server_api.h 中的函数前需加 ACL_API 以便于生成动态库
+
+536) 2016.3.1
+536.1) bugfix: acl_threads_server.c 在 daemon 模式下当只监听一个端口时，控制
+服务器 acl_master 不会传递 -s 参数，应该 socket_count 值初始化为 1
+
+535) 2016.2.28
+535.1) bugfix: acl_vstream.c 加强了 fp->read_cnt < 0 时的安全处理
+535.2) feature: acl_threads_server.c 支持 WINDOWS 平台，同时支持 daemon 模式
+及独立运行模式
+
+534) 2016.2.26
+534.1) feature: acl_threads_server.c 服务器模板增加了几个接口
+
+533) 2016.2.22
+533.1) feature: acl_inet_listen.c 在创建监听描述符时支持使用 SO_REUSEPORT,
+TCP_FASTOPEN 以提升 TCP 的处理性能（此两个特性均需要内核支持，同时 TCP_FASTOPEN
+还需要在编译 lib_acl.a 时定义预编译条件：USE_FASTOPEN）
+
+532) 2016.2.18
+532.1) feature: acl_xml/acl_xml2 增加函数接口，允许以文件流为创建 xml 节点的文本
+
+531) 2016.2.16
+531.1) performance: 优化 acl_vstream.c 中 acl_vstream_read 函数的读性能:
+同时兼顾大数据读取与小数据读取的性能问题
+
+530) 2016.2.13
+530.1) compile: 使用预编译，优化 gcc 编译速度
+
+529) 2016.2.5
+529.1) feature: acl_vstring.c 以内存映射文件方式管理内存同时支持 UNIX/WINDOWS
+
+528) 2016.2.1
+528.1) feature: acl_vstring.c, 优化代码结构
+
+527) 2016.1.30
+527.1) feature: acl_vstring.c 增加了 acl_vstring_mmap_alloc，用于支持以内存
+文件映射方式管理内存
+527.2) feature&safety: acl_vstring.c 真正支持限定最大使用空间功能
+527.3) samples/mmap_string: 该示例用于测试以内存文件映射方式使用 acl_vstring
+的功能
+
+526) 2016.1.17
+526.1) feature: acl_default_malloc.c，函数 acl_default_realloc 当输入的地址为
+NULL，则自动切换至 acl_default_malloc 过程
+526.2) feature: acl_vstream.c，函数 acl_vstream_fdopen 会自动判断所给描述符是否
+为监听描述符，避免了用户输入的参数 fdtype 的非法性
+526.3) feature: events_select.c/events_poll.c/events_kernel.c，内部自动判断是否
+为监听描述符，从而降低了事件模块与流模块之间以及其它模块之间的耦合度
+
+525) 2016.1.16
+525.1) bugfix: acl_multi_server.c/acl_single_server.c/acl_trigger_server.c，在
+将监控监听套接口的读事件时，应该调用 acl_event_enable_listen，而不是调用
+acl_event_enable_read
+525.2) feature: 增加函数 acl_check_socket 用来检查所给套接字是否为监听套接字
+
+524) 2016.1.8
+524.1) bugfix: acl_xml_parse.c/acl_xml2_parse.c/acl_xml_util.c/acl_xml2_util.c,
+修复了当数据节点为 META, COMMENT, CDATA 时解析与创建 xml 对象时的 BUG
+
+------------------------------------------------------------------------
+523) 2015.12.28
+523.1) acl_read_wait.c 中的函数 acl_read_wait 在 32 位的低版本 LINUX 平台下
+使用 epoll 方法模拟读超时可能有问题，所以改用 poll 方法来实现读超时机制
+
+522) 2015.12.24
+522.1) bugfix: 修复了 valgrind 检测出的 acl_xml_parse.c 中函数 cdata_prepare
+存在指针非法访问问题
+
+521) 2015.12.23
+521.1) bugfix: acl_xml_parse.c/acl_xml2_parse.c 当解析一个空的 CDATA 时有问题
+
+520) 2015.12.21
+520.1) bugfix: master_sig.c 中在读数据时应该使用 acl_vstream_read，而不是
+调用系统 API read，否则会形成死循环
+520.2) bugfix: event 事件引擎应该区分监听描述字和一般套接字，有的地方未给
+监听套接字 listener 置 1，这样会造成死循环
+520.3) bugfix: acl_read_wait 函数中使用 epoll 的方式有问题，会造成死循环
+
+519) 2015.12.20
+519.1) feature: acl_aio.c 增加了设置检查所有套接字状态的时间间隔函数
+519.2) performance: events.c, events_kernel.c, events_iocp.c, 在每一个事件
+循环处理完毕时，如果依然有一些描述字的缓冲区还有数据，则立即触发下一个事件
+循环过程，从而保证了 IO 读的处理效率
+
+518) 2015.12.19
+518.1) bugfix: acl_sys_socket.c 的函数 acl_socket_read 中没有清除流对象 fp
+的系统可读标志位(sys_read_ready 置 0)，则可能会造成读阻塞或异步读时的死循环
+518.2) bugfix: acl_aio_write.c 的函数 acl_aio_writen 中在一处返回时未将嵌套
+层级减一，可能会阻塞写过程
+
+517) 2015.12.18
+517.1) bugfix: events.c 中函数 event_prepare 针对监听描述符，应该忽略掉标志位
+sys_read_ready，该标志位仅对网络 IO 套接字有效
+517.2) bugfix: 事件引擎不应针对监听套接字设置 sys_read_ready 标志位
+517.3) bugfix: master_status.c 函数 master_status_event 中在读数据时应该使用
+acl_vstream_read，而不应使用系统 API read，因为 acl_vstream_read 内部才会清除
+sys_read_ready 标志位
+
+516) 2015.12.9
+516.1) feature: acl_xml_parse.c / acl_xml2_parse.c can parse CDATA
+
+515) 2015.12.8
+515.1) bugfix: acl_vstream.c 中当 read/write 接口被注入时，因为没有对应的
+writev 注入方式，所以需要多次调用 write 来模拟 writev 过程
+515.2) bugfix: events.c 中的函数 event_prepare 针对 sys_read_ready = 1 的情况
+需要将 event_type 为 ACL_EVENT_ACCEPT 的情形排除
+
+514) 2015.12.7
+514.1) performance: acl_xml_util.c 中的函数 acl_xml_create_node 在创建节点时，
+如果正文内容比较大，则会因内存的快速频繁膨胀而造成性能损耗，现在采用了预分配策略，
+以减少这种性能损耗
+514.2) bugfix: acl_xml.c/acl_xml2.c/acl_xml3.c 在删除节点时在在残留问题
+
+513) 2015.12.4
+513.1) bugfix: fdp->stream->sys_read_ready should be check in event_prepare
+513.2) performance: acl_xmlcode.c 中的函数 acl_xml_encode/acl_xml_decode 通过
+提前预分配内存，以减少重复分配/释放内存的次数，从而在一定程度上提升内存操作性能
+513.3) bugfix: 将清楚 ACL_VSTREAM::sys_read_ready 标志位的操作从 acl_vstream.c
+的函数 sys_read 中移除，在 acl_sys_socket.c 的函数 acl_socket_read 进行清除该标志位
+
+function of events.c for reading event.
+
+512) 2015.12.3
+512.1) bugfix: acl_vstream.c 中的函数 sys_read 中必须在调用 fread_fn/read_fn
+前清除可读标志位，这样 IO 钩子函数在重置该标志位时才能生效
+
+511) 2015.12.2
+511.1) feature: acl_xml2 解析器新增接口 acl_xml2_mmap_alloc，方便以内存文件
+映射方式对 xml 文件进行解析和创建
+511.2) feature: acl_xml2 解析器支持文件空间大小自动扩充方式
+
+510) 2015.11.29
+510.1) feature: 新增 xml 解析器 acl_xml3，该解析器性能与 RapidXML(号称世界上
+最快的)解析器的性能几乎相当
+510.2) feature: acl_xml2 增加了将 xml 对象转换为字符串的功能
+
+509) 2015.11.27
+509.1) feature: acl_dbuf_pool.c 在调用 acl_dbuf_pool_free 时可以有效地释放掉
+大内存，这样在 acl_vstring.c 中在进行大内存扩充时可以有效地将大内存优先释放掉
+
+508) 2015.11.26
+508.1) feature: acl_xml_parse.c 支持解析有多个或单个 xml 根节点的 xml 文档
+
+507) 2015.11.24
+507.1) feature: 增加新的 xml 编解码函数，其中的参数指定输出缓冲区大小
+
 506) 2015.11.20
 506.1) bugfix: acl_dbuf_pool.c 中在调用 acl_dbuf_pool_reset 时在遇到保留内存
 块时应该保留整个内存块，且偏移地址保持不变

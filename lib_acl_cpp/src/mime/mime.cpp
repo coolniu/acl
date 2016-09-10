@@ -1,6 +1,7 @@
 #include "acl_stdafx.hpp"
 #include "internal/mime_state.hpp"
 #include "internal/header_opts.hpp"
+#ifndef ACL_PREPARE_COMPILE
 #include "acl_cpp/stdlib/log.hpp"
 #include "acl_cpp/stdlib/xml.hpp"
 #include "acl_cpp/stream/ifstream.hpp"
@@ -15,8 +16,8 @@
 #include "acl_cpp/mime/mime_xxcode.hpp"
 #include "acl_cpp/mime/mime_quoted_printable.hpp"
 #include "acl_cpp/mime/rfc2047.hpp"
-
 #include "acl_cpp/mime/mime.hpp"
+#endif
 
 namespace acl {
 
@@ -117,7 +118,7 @@ void mime::primary_head_finish()
 
 	MIME_NODE* node = m_pMimeState->root;
 
-	m_primaryHeader.set_type(node->ctype, node->stype);
+	m_primaryHeader.set_type(node->ctype_s, node->stype_s);
 
 	// 针对邮件主头部
 	ACL_ITER iter;
@@ -492,101 +493,200 @@ bool mime::save_mail(const char* path, const char* filename,
 	return (true);
 }
 
-// 找到邮件正文结点
-static MIME_NODE* body_node(MIME_STATE* pMime, bool htmlFirst)
+static MIME_NODE *get_alternative(MIME_STATE *pMime)
 {
-	// 如果不是 multipart 格式则返回根结点为邮件正文结点
-	if (pMime->root->ctype != MIME_CTYPE_MULTIPART)
-	{
-		return (pMime->root);
-	}
-	else if (pMime->root->boundary == NULL)
-	{
-		logger_warn("no boundary for multipart");
-		return (pMime->root);
-	}
-
-	ACL_ITER iter;
-
-	if (htmlFirst)
-	{
-		MIME_NODE* pHtml = NULL, *pText = NULL;
-		acl_foreach(iter, pMime)
-		{
-			MIME_NODE* pNode = (MIME_NODE*) iter.data;
-			if (pNode->ctype != MIME_CTYPE_TEXT)
-				continue;
-
-			if (pNode->stype == MIME_STYPE_HTML)
-			{
-				pHtml = pNode;
-				break;
-			}
-			else if (pNode->stype == MIME_STYPE_PLAIN)
-			{
-				// 仅保留第一个纯文本的结点
-				if (pText == NULL)
-					pText = pNode;
-			}
-		}
-
-		return (pHtml != NULL ? pHtml : pText);
-	}
-
 	// 从根结点开始遍历整个 multipart 邮件中所有的子结点，
 	// 直至找到第一个不包含子结点的结点，因为遍历过程本身
 	// 保证了遍历是自上而下遍历的，即先遍历根结点的子结点，
 	// 然后层层遍历子结点的子结点直至满足条件为止
-	//
 
-	MIME_NODE* pAlterNativeNode = NULL;
+	MIME_NODE* pAlterNative = NULL;
+	ACL_ITER iter;
 
 	acl_foreach(iter, pMime)
 	{
 		MIME_NODE* pNode = (MIME_NODE*) iter.data;
 		if (pNode->ctype != MIME_CTYPE_MULTIPART
-			&& pNode->stype != MIME_STYPE_ALTERNATIVE)
+			|| pNode->stype != MIME_STYPE_ALTERNATIVE)
 		{
 			continue;
 		}
 		// 如果该结点的子结点数小于 2 则说明邮件格式有误
 		if (acl_ring_size(&pNode->children) < 2)
 			continue;
-		pAlterNativeNode = pNode;
+		pAlterNative = pNode;
 	}
 
-	if (pAlterNativeNode == NULL)
-	{
-		logger_warn("no alternative node");
-		return (pMime->root);
-	}
-
-	return (acl_ring_first_appl(&pAlterNativeNode->children,
-			MIME_NODE, node));
+	return pAlterNative;
 }
+
+static MIME_NODE *get_text_html(MIME_NODE *pAlterNative, bool *is_html = NULL)
+{
+	ACL_ITER iter;
+	MIME_NODE* pHtml = NULL, *pText = NULL;
+
+	acl_foreach(iter, pAlterNative)
+	{
+		MIME_NODE* pNode = (MIME_NODE*) iter.data;
+		if (pNode->ctype != MIME_CTYPE_TEXT)
+			continue;
+
+		if (pNode->stype == MIME_STYPE_HTML)
+		{
+			pHtml = pNode;
+			break;
+		}
+		else if (pNode->stype == MIME_STYPE_PLAIN)
+		{
+			// 仅保留第一个纯文本的结点
+			if (pText == NULL)
+				pText = pNode;
+		}
+	}
+
+	if (is_html)
+	{
+		if (pHtml != NULL)
+			*is_html = true;
+		else
+			*is_html = false;
+	}
+
+	return pHtml != NULL ? pHtml : pText;
+}
+
+static MIME_NODE *get_text_plain(MIME_NODE *pAlterNative, bool *is_html = NULL)
+{
+	ACL_ITER iter;
+	MIME_NODE* pHtml = NULL, *pText = NULL;
+
+	acl_foreach(iter, pAlterNative)
+	{
+		MIME_NODE* pNode = (MIME_NODE*) iter.data;
+		if (pNode->ctype != MIME_CTYPE_TEXT)
+			continue;
+
+		if (pNode->stype == MIME_STYPE_PLAIN)
+		{
+			pText = pNode;
+			break;
+		}
+		else if (pNode->stype == MIME_STYPE_HTML)
+		{
+			// 仅保留第一个HTML结点
+			if (pHtml == NULL)
+				pHtml = pNode;
+		}
+	}
+
+	if (is_html)
+	{
+		if (pText == NULL && pHtml != NULL)
+			*is_html = true;
+		else
+			*is_html = false;
+	}
+
+	return pText != NULL ? pText : pHtml;
+}
+
+// 找到邮件正文结点
+static MIME_NODE* body_node(MIME_STATE* pMime, bool htmlFirst,
+	bool *is_html = NULL)
+{
+	if (pMime->root->ctype == MIME_CTYPE_TEXT)
+	{
+		if (is_html)
+			*is_html = pMime->root->stype == MIME_STYPE_HTML;
+		return pMime->root;
+	}
+
+	if (pMime->root->ctype != MIME_CTYPE_MULTIPART)
+		return NULL;
+	else if (pMime->root->boundary == NULL)
+	{
+		logger_warn("no boundary for multipart");
+		return NULL;
+	}
+
+	MIME_NODE *pAlterNative;
+
+	if (pMime->root->stype == MIME_STYPE_ALTERNATIVE)
+		pAlterNative = pMime->root;
+	else
+		pAlterNative = get_alternative(pMime);
+
+	if (pAlterNative != NULL)
+	{
+		if (htmlFirst)
+			return get_text_html(pAlterNative, is_html);
+		else
+			return get_text_plain(pAlterNative, is_html);
+	}
+
+	if (htmlFirst)
+		return get_text_html(pMime->root, is_html);
+	else
+		return get_text_plain(pMime->root, is_html);
+}
+
+#if 0
+#define EQ2(x, y) (((x) == NULL && (y) == NULL)  \
+	|| ((x) != NULL && (y) != NULL && !strcasecmp((x), (y))))
+#endif
 
 mime_body* mime::get_body_node(bool htmlFirst,
 	bool enableDecode /* = true */,
 	const char* toCharset /* = "gb2312" */,
 	off_t off /* = 0 */)
 {
-#define EQ2(x, y) (((x) == NULL && (y) == NULL)  \
-	|| ((x) != NULL && (y) != NULL && !strcasecmp((x), (y))))
-
 	if (m_pBody != NULL)
 	{
-		const char* ptr = m_pBody->get_toCharset();
-		if (EQ2(toCharset, ptr))
-			return (m_pBody);
+		//const char* ptr = m_pBody->get_toCharset();
+		//if (EQ2(toCharset, ptr))
+		//	return m_pBody;
 		delete m_pBody;
 	}
 
 	MIME_NODE* node = body_node(m_pMimeState, htmlFirst);
 	if (node == NULL)
-		return (NULL);
+		return NULL;
+
 	m_pBody = NEW mime_body(m_pFilePath, node, htmlFirst,
 			enableDecode, toCharset, off);
-	return (m_pBody);
+	return m_pBody;
+}
+
+mime_body* mime::get_html_body(bool enableDecode /* = true */,
+	const char* toCharset /* = "gb2312" */, off_t off /* = 0 */)
+{
+	if (m_pBody != NULL)
+		delete m_pBody;
+
+	bool is_html = false;
+	MIME_NODE* node = body_node(m_pMimeState, true, &is_html);
+	if (node == NULL || !is_html)
+		return NULL;
+
+	m_pBody = NEW mime_body(m_pFilePath, node, true,
+		enableDecode, toCharset, off);
+	return m_pBody;
+}
+
+mime_body* mime::get_plain_body(bool enableDecode /* = true */,
+	const char* toCharset /* = "gb2312" */, off_t off /* = 0 */)
+{
+	if (m_pBody != NULL)
+		delete m_pBody;
+
+	bool is_html = false;
+	MIME_NODE* node = body_node(m_pMimeState, false, &is_html);
+	if (node == NULL || is_html)
+		return NULL;
+
+	m_pBody = NEW mime_body(m_pFilePath, node, false,
+		enableDecode, toCharset, off);
+	return m_pBody;
 }
 
 const std::list<mime_node*>& mime::get_mime_nodes(bool enableDecode /* = true */,
@@ -611,8 +711,14 @@ const std::list<mime_node*>& mime::get_mime_nodes(bool enableDecode /* = true */
 	return (*m_pNodes);
 }
 
+static bool has_content_id(MIME_NODE* node)
+{
+	return mime_head_value(node, "Content-ID") == NULL ? false : true;
+}
+
 const std::list<mime_attach*>& mime::get_attachments(bool enableDecode /* = true */,
-	const char* toCharset /* = "gb2312" */, off_t off /* = 0 */)
+	const char* toCharset /* = "gb2312" */, off_t off /* = 0 */,
+	bool all /* = true */)
 {
 	if (m_pAttaches == NULL)
 		m_pAttaches = NEW std::list<mime_attach*>;
@@ -622,18 +728,29 @@ const std::list<mime_attach*>& mime::get_attachments(bool enableDecode /* = true
 	if (m_pMimeState == NULL)
 		return (*m_pAttaches);
 
+#define EQ	!strcasecmp
+#define CHECK(t) (EQ((t), "message") || EQ((t), "image") || EQ((t), "application"))
+
 	ACL_ITER iter;
 	mime_attach* attach;
 	MIME_NODE* node;
 	acl_foreach(iter, m_pMimeState)
 	{
 		node = (MIME_NODE*) iter.data;
-		if (node->header_filename == NULL)
-			continue;
-		attach = NEW mime_attach(m_pFilePath, node,
+		if (node->header_filename != NULL || has_content_id(node))
+		{
+			attach = NEW mime_attach(m_pFilePath, node,
+					enableDecode, toCharset, off);
+			m_pAttaches->push_back(attach);
+		}
+		else if (all && node->ctype_s && CHECK(node->ctype_s))
+		{
+			attach = NEW mime_attach(m_pFilePath, node,
 				enableDecode, toCharset, off);
-		m_pAttaches->push_back(attach);
+			m_pAttaches->push_back(attach);
+		}
 	}
+
 	return (*m_pAttaches);
 }
 
@@ -806,9 +923,8 @@ void mime::mime_debug(const char* save_path, bool decode /* = true */)
 	if (save_path == NULL)
 		return;
 
-	logger("ctype: %s, stype: %s\r\n",
-		mime_ctype_name(state->root->ctype),
-		mime_stype_name(state->root->stype));
+	printf("primary node ctype: %s, stype: %s\r\n",
+		get_ctype(), get_stype());
 
 	state_dummy.root = state->root;
 	mime_state_foreach_init(&state_dummy);
@@ -817,9 +933,9 @@ void mime::mime_debug(const char* save_path, bool decode /* = true */)
 	acl_foreach(iter, &state_dummy)
 	{
 		MIME_NODE *node = (MIME_NODE*) iter.data;
-		const char* ctype = mime_ctype_name(node->ctype);
-		const char* stype = mime_stype_name(node->stype);
-		printf("ctype: %s, stype: %s\r\n", ctype, stype);
+		printf("child node->ctype: %s, stype: %s\r\n",
+			node->ctype_s ? node->ctype_s : "null",
+			node->stype_s ? node->stype_s : "null");
 
 		if (node->boundary)
 			printf(">>boundary: %s\r\n",

@@ -103,9 +103,9 @@ void master_service::thread_on_exit()
 void master_service::proc_on_init()
 {
 	// create redis cluster for session cluster
-	redis_ = new acl::redis_client_cluster(var_cfg_conn_timeout,
-			var_cfg_rw_timeout);
-	redis_->init(NULL, var_cfg_redis_addrs, var_cfg_max_threads);
+	redis_ = new acl::redis_client_cluster;
+	redis_->init(NULL, var_cfg_redis_addrs, var_cfg_max_threads,
+		var_cfg_conn_timeout, var_cfg_rw_timeout);
 }
 
 void master_service::proc_on_exit()
@@ -115,7 +115,7 @@ void master_service::proc_on_exit()
 
 bool master_service::proc_exit_timer(size_t nclients, size_t nthreads)
 {
-	if (nclients == 0 || nthreads == 0)
+	if (nclients == 0)
 	{
 		logger("clients count: %d, threads count: %d",
 			(int) nclients, (int) nthreads);
